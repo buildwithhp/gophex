@@ -1,4 +1,4 @@
-module github.com/hemant/gophex
+module gophex
 
 go 1.24.5
 

@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/hemant/gophex/pkg/version"
+	"gophex/pkg/version"
 	"github.com/spf13/cobra"
 )
 

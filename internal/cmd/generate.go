@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hemant/gophex/internal/generator"
+	"gophex/internal/generator"
 	"github.com/spf13/cobra"
 )
 

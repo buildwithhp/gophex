@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hemant/gophex/internal/templates"
+	"gophex/internal/templates"
 )
 
 type Generator struct{}

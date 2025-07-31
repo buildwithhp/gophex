@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hemant/gophex/internal/cmd"
+	"gophex/internal/cmd"
 )
 
 func main() {
