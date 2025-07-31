@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"gophex/internal/cmd"
+	"github.com/buildwithhp/gophex/internal/cmd"
 )
 
 func main() {

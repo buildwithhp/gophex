@@ -1,4 +1,4 @@
-module gophex
+module github.com/buildwithhp/gophex
 
 go 1.24.5
 
