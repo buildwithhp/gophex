@@ -5,58 +5,84 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/buildwithhp/gophex/internal/generator"
-	"github.com/spf13/cobra"
 )
 
-var generateCmd = &cobra.Command{
-	Use:   "generate [project-type] [project-name]",
-	Short: "Generate a new Go project",
-	Long: `Generate a new Go project with the specified type and name.
+func GenerateProject() error {
+	var projectType string
+	var projectName string
 
-Available project types:
-- api: REST API with clean architecture
-- webapp: Web application with templates
-- microservice: Microservice with gRPC support
-- cli: Command-line tool`,
-	Args: cobra.ExactArgs(2),
-	Run: func(cmd *cobra.Command, args []string) {
-		projectType := args[0]
-		projectName := args[1]
-
-		if err := validateProjectType(projectType); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-
-		currentDir, err := os.Getwd()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error getting current directory: %v\n", err)
-			os.Exit(1)
-		}
-
-		projectPath := filepath.Join(currentDir, projectName)
-
-		gen := generator.New()
-		if err := gen.Generate(projectType, projectName, projectPath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error generating project: %v\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Printf("Successfully generated %s project '%s' in %s\n", projectType, projectName, projectPath)
-	},
-}
-
-func validateProjectType(projectType string) error {
-	validTypes := []string{"api", "webapp", "microservice", "cli"}
-	for _, t := range validTypes {
-		if t == projectType {
-			return nil
-		}
+	// Ask for project type
+	projectTypePrompt := &survey.Select{
+		Message: "What type of Go project would you like to generate?",
+		Options: []string{
+			"api - REST API with clean architecture",
+			"webapp - Web application with templates",
+			"microservice - Microservice with gRPC support",
+			"cli - Command-line tool",
+		},
 	}
-	return fmt.Errorf("invalid project type '%s'. Valid types: %v", projectType, validTypes)
-}
 
-func init() {
-	rootCmd.AddCommand(generateCmd)
+	err := survey.AskOne(projectTypePrompt, &projectType)
+	if err != nil {
+		return fmt.Errorf("project type selection failed: %w", err)
+	}
+
+	// Extract the actual type from the selection (before the " - " description)
+	switch {
+	case projectType[:3] == "api":
+		projectType = "api"
+	case projectType[:6] == "webapp":
+		projectType = "webapp"
+	case projectType[:12] == "microservice":
+		projectType = "microservice"
+	case projectType[:3] == "cli":
+		projectType = "cli"
+	}
+
+	// Ask for project name
+	projectNamePrompt := &survey.Input{
+		Message: "What is the name of your project?",
+		Help:    "This will be used as the directory name and module name",
+	}
+
+	err = survey.AskOne(projectNamePrompt, &projectName, survey.WithValidator(survey.Required))
+	if err != nil {
+		return fmt.Errorf("project name input failed: %w", err)
+	}
+
+	// Get current directory
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("error getting current directory: %w", err)
+	}
+
+	projectPath := filepath.Join(currentDir, projectName)
+
+	// Confirm generation
+	var confirm bool
+	confirmPrompt := &survey.Confirm{
+		Message: fmt.Sprintf("Generate %s project '%s' in %s?", projectType, projectName, projectPath),
+		Default: true,
+	}
+
+	err = survey.AskOne(confirmPrompt, &confirm)
+	if err != nil {
+		return fmt.Errorf("confirmation failed: %w", err)
+	}
+
+	if !confirm {
+		fmt.Println("Project generation cancelled.")
+		return nil
+	}
+
+	// Generate the project
+	gen := generator.New()
+	if err := gen.Generate(projectType, projectName, projectPath); err != nil {
+		return fmt.Errorf("error generating project: %w", err)
+	}
+
+	fmt.Printf("✅ Successfully generated %s project '%s' in %s\n", projectType, projectName, projectPath)
+	return nil
 }
