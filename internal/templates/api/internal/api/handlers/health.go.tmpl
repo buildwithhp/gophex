@@ -1,0 +1,29 @@
+package handlers
+
+import (
+	"net/http"
+
+	"{{.ModuleName}}/internal/api/responses"
+)
+
+type HealthHandler struct{}
+
+func NewHealthHandler() *HealthHandler {
+	return &HealthHandler{}
+}
+
+// Health godoc
+// @Summary Health check endpoint
+// @Description Check if the API is running
+// @Tags health
+// @Accept json
+// @Produce json
+// @Success 200 {object} responses.SuccessResponse
+// @Router /health [get]
+func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
+	responses.Success(w, http.StatusOK, "API is healthy", map[string]interface{}{
+		"service": "{{.ProjectName}}",
+		"status":  "healthy",
+		"version": "1.0.0",
+	})
+}
