@@ -50,16 +50,30 @@ func (g *Generator) generateCLI(projectName, projectPath string) error {
 }
 
 func (g *Generator) createFromTemplate(templateType, projectName, projectPath string) error {
-	template := templates.GetTemplate(templateType)
+	// Get template files from embedded filesystem
+	templateFiles, err := templates.GetTemplateFiles(templateType)
+	if err != nil {
+		return fmt.Errorf("failed to get template files for %s: %w", templateType, err)
+	}
 
-	for _, file := range template.Files {
+	// Prepare template data
+	data := templates.TemplateData{
+		ProjectName: projectName,
+		ModuleName:  templates.GenerateModuleName(projectName),
+	}
+
+	for _, file := range templateFiles {
 		filePath := filepath.Join(projectPath, file.Path)
 
 		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 			return fmt.Errorf("failed to create directory for %s: %w", filePath, err)
 		}
 
-		content := templates.ProcessTemplate(file.Content, projectName)
+		// Process template with proper template engine
+		content, err := templates.ProcessTemplate(file.Content, data)
+		if err != nil {
+			return fmt.Errorf("failed to process template for %s: %w", file.Path, err)
+		}
 
 		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 			return fmt.Errorf("failed to write file %s: %w", filePath, err)

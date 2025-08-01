@@ -1,0 +1,19 @@
+package main
+
+import (
+	"log"
+	"net/http"
+
+	"{{.ModuleName}}/internal/handlers"
+	"github.com/gorilla/mux"
+)
+
+func main() {
+	r := mux.NewRouter()
+	
+	r.HandleFunc("/health", handlers.Health).Methods("GET")
+	r.HandleFunc("/api/{{.ProjectName}}", handlers.Service).Methods("GET")
+	
+	log.Printf("{{.ProjectName}} microservice starting on :8080")
+	log.Fatal(http.ListenAndServe(":8080", r))
+}

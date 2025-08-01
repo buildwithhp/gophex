@@ -1,0 +1,29 @@
+package main
+
+import (
+	"html/template"
+	"log"
+	"net/http"
+
+	"github.com/gorilla/mux"
+)
+
+func main() {
+	r := mux.NewRouter()
+	
+	r.HandleFunc("/", homeHandler).Methods("GET")
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
+	
+	log.Println("Web server starting on :8080")
+	log.Fatal(http.ListenAndServe(":8080", r))
+}
+
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	tmpl := template.Must(template.ParseFiles("web/templates/index.html"))
+	data := struct {
+		Title string
+	}{
+		Title: "{{.ProjectName}}",
+	}
+	tmpl.Execute(w, data)
+}
