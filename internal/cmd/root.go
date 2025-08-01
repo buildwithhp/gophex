@@ -27,11 +27,6 @@ func Execute() error {
 		}
 	}
 
-	// Interactive mode
-	fmt.Println("🚀 Welcome to Gophex!")
-	fmt.Println("A CLI tool for generating Go project scaffolding")
-	fmt.Println()
-
 	var action string
 	prompt := &survey.Select{
 		Message: "What would you like to do?",
