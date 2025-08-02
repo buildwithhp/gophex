@@ -44,6 +44,11 @@ func GetTemplateFiles(templateType string) ([]FileTemplate, error) {
 		relativePath := strings.TrimPrefix(path, templateType+"/")
 		relativePath = strings.TrimSuffix(relativePath, ".tmpl")
 
+		// Handle special case for env.example -> .env.example
+		if relativePath == "env.example" {
+			relativePath = ".env.example"
+		}
+
 		files = append(files, FileTemplate{
 			Path:    relativePath,
 			Content: string(content),

@@ -1,0 +1,150 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"time"
+
+	"{{.ModuleName}}/internal/domain/user"
+)
+
+type userRepository struct {
+	db *sql.DB
+}
+
+func NewUserRepository(db *sql.DB) user.Repository {
+	return &userRepository{db: db}
+}
+
+func (r *userRepository) Create(ctx context.Context, u *user.User) (*user.User, error) {
+	query := `
+		INSERT INTO users (name, email, password_hash, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, created_at, updated_at`
+
+	now := time.Now()
+	err := r.db.QueryRowContext(ctx, query, u.Name, u.Email, u.Password, now, now).
+		Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	return u, nil
+}
+
+func (r *userRepository) GetByID(ctx context.Context, id int64) (*user.User, error) {
+	query := `
+		SELECT id, name, email, password_hash, created_at, updated_at
+		FROM users
+		WHERE id = $1`
+
+	u := &user.User{}
+	err := r.db.QueryRowContext(ctx, query, id).
+		Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return u, nil
+}
+
+func (r *userRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+	query := `
+		SELECT id, name, email, password_hash, created_at, updated_at
+		FROM users
+		WHERE email = $1`
+
+	u := &user.User{}
+	err := r.db.QueryRowContext(ctx, query, email).
+		Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	return u, nil
+}
+
+func (r *userRepository) GetAll(ctx context.Context, page, limit int) ([]*user.User, int64, error) {
+	// Get total count
+	var total int64
+	countQuery := "SELECT COUNT(*) FROM users"
+	err := r.db.QueryRowContext(ctx, countQuery).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	// Get users with pagination
+	offset := (page - 1) * limit
+	query := `
+		SELECT id, name, email, password_hash, created_at, updated_at
+		FROM users
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2`
+
+	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*user.User
+	for rows.Next() {
+		u := &user.User{}
+		err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.CreatedAt, &u.UpdatedAt)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, u)
+	}
+
+	return users, total, nil
+}
+
+func (r *userRepository) Update(ctx context.Context, id int64, u *user.User) (*user.User, error) {
+	query := `
+		UPDATE users
+		SET name = COALESCE(NULLIF($1, ''), name),
+		    email = COALESCE(NULLIF($2, ''), email),
+		    updated_at = $3
+		WHERE id = $4
+		RETURNING id, name, email, password_hash, created_at, updated_at`
+
+	now := time.Now()
+	updated := &user.User{}
+	err := r.db.QueryRowContext(ctx, query, u.Name, u.Email, now, id).
+		Scan(&updated.ID, &updated.Name, &updated.Email, &updated.Password, &updated.CreatedAt, &updated.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return updated, nil
+}
+
+func (r *userRepository) Delete(ctx context.Context, id int64) error {
+	query := "DELETE FROM users WHERE id = $1"
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
+}

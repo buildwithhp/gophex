@@ -60,21 +60,58 @@ func GenerateProject() error {
 
 	projectPath := filepath.Join(currentDir, projectName)
 
-	// Confirm generation
-	var confirm bool
-	confirmPrompt := &survey.Confirm{
-		Message: fmt.Sprintf("Generate %s project '%s' in %s?", projectType, projectName, projectPath),
-		Default: true,
-	}
+	// Path confirmation loop
+	for {
+		var confirm bool
+		confirmPrompt := &survey.Confirm{
+			Message: fmt.Sprintf("Generate %s project '%s' in %s?", projectType, projectName, projectPath),
+			Default: true,
+		}
 
-	err = survey.AskOne(confirmPrompt, &confirm)
-	if err != nil {
-		return fmt.Errorf("confirmation failed: %w", err)
-	}
+		err = survey.AskOne(confirmPrompt, &confirm)
+		if err != nil {
+			return fmt.Errorf("confirmation failed: %w", err)
+		}
 
-	if !confirm {
-		fmt.Println("Project generation cancelled.")
-		return nil
+		if confirm {
+			break // User confirmed, proceed with generation
+		}
+
+		// User said no, ask if they want to change the path or cancel
+		var action string
+		actionPrompt := &survey.Select{
+			Message: "What would you like to do?",
+			Options: []string{
+				"Change directory path",
+				"Cancel project generation",
+			},
+		}
+
+		err = survey.AskOne(actionPrompt, &action)
+		if err != nil {
+			return fmt.Errorf("action selection failed: %w", err)
+		}
+
+		if action == "Cancel project generation" {
+			fmt.Println("Project generation cancelled.")
+			return nil
+		}
+
+		// Ask for new directory path
+		var newPath string
+		pathPrompt := &survey.Input{
+			Message: "Enter the directory path where you want to create the project:",
+			Default: currentDir,
+			Help:    "Enter the full path or relative path. The project folder will be created inside this directory.",
+		}
+
+		err = survey.AskOne(pathPrompt, &newPath, survey.WithValidator(survey.Required))
+		if err != nil {
+			return fmt.Errorf("path input failed: %w", err)
+		}
+
+		// Update project path
+		projectPath = filepath.Join(newPath, projectName)
 	}
 
 	// Generate the project

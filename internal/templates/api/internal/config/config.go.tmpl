@@ -1,0 +1,120 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+)
+
+type Config struct {
+	Server    ServerConfig    `yaml:"server"`
+	Database  DatabaseConfig  `yaml:"database"`
+	JWT       JWTConfig       `yaml:"jwt"`
+	CORS      CORSConfig      `yaml:"cors"`
+	RateLimit RateLimitConfig `yaml:"rate_limit"`
+	LogLevel  string          `yaml:"log_level"`
+}
+
+type ServerConfig struct {
+	Port         int `yaml:"port"`
+	ReadTimeout  int `yaml:"read_timeout"`
+	WriteTimeout int `yaml:"write_timeout"`
+	IdleTimeout  int `yaml:"idle_timeout"`
+}
+
+type DatabaseConfig struct {
+	PostgresURL string `yaml:"postgres_url"`
+	RedisURL    string `yaml:"redis_url"`
+}
+
+type JWTConfig struct {
+	Secret          string `yaml:"secret"`
+	ExpirationHours int    `yaml:"expiration_hours"`
+}
+
+type CORSConfig struct {
+	AllowedOrigins []string `yaml:"allowed_origins"`
+	AllowedMethods []string `yaml:"allowed_methods"`
+	AllowedHeaders []string `yaml:"allowed_headers"`
+}
+
+type RateLimitConfig struct {
+	RequestsPerMinute int `yaml:"requests_per_minute"`
+}
+
+func Load() (*Config, error) {
+	config := &Config{
+		// Default values
+		Server: ServerConfig{
+			Port:         8080,
+			ReadTimeout:  30,
+			WriteTimeout: 30,
+			IdleTimeout:  120,
+		},
+		Database: DatabaseConfig{
+			PostgresURL: "postgres://localhost:5432/{{.ProjectName}}?sslmode=disable",
+			RedisURL:    "redis://localhost:6379",
+		},
+		JWT: JWTConfig{
+			Secret:          "your-secret-key-change-this-in-production",
+			ExpirationHours: 24,
+		},
+		CORS: CORSConfig{
+			AllowedOrigins: []string{"*"},
+			AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+			AllowedHeaders: []string{"Content-Type", "Authorization"},
+		},
+		RateLimit: RateLimitConfig{
+			RequestsPerMinute: 100,
+		},
+		LogLevel: "info",
+	}
+
+	// Override with environment variables
+	if port := os.Getenv("PORT"); port != "" {
+		if p, err := strconv.Atoi(port); err == nil {
+			config.Server.Port = p
+		}
+	}
+
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		config.Database.PostgresURL = dbURL
+	}
+
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		config.Database.RedisURL = redisURL
+	}
+
+	if jwtSecret := os.Getenv("JWT_SECRET"); jwtSecret != "" {
+		config.JWT.Secret = jwtSecret
+	}
+
+	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
+		config.LogLevel = strings.ToLower(logLevel)
+	}
+
+	if corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS"); corsOrigins != "" {
+		config.CORS.AllowedOrigins = strings.Split(corsOrigins, ",")
+	}
+
+	// Load from config file if exists
+	if configFile := os.Getenv("CONFIG_FILE"); configFile != "" {
+		if err := loadFromFile(config, configFile); err != nil {
+			return nil, fmt.Errorf("failed to load config file: %w", err)
+		}
+	}
+
+	return config, nil
+}
+
+func loadFromFile(config *Config, filename string) error {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+
+	return yaml.Unmarshal(data, config)
+}
