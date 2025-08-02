@@ -75,5 +75,7 @@ func ProcessTemplate(content string, data TemplateData) (string, error) {
 }
 
 func GenerateModuleName(projectName string) string {
-	return "github.com/" + strings.ToLower(projectName)
+	// Use a simple local module name that will work out of the box
+	// Users can change this later if they want to publish to a specific repository
+	return strings.ToLower(projectName)
 }
