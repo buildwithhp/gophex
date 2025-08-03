@@ -1,13 +1,18 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/buildwithhp/gophex/internal/utils"
 	"github.com/buildwithhp/gophex/pkg/version"
 )
+
+// ErrReturnToMenu is a special error that signals to return to the main menu
+var ErrReturnToMenu = errors.New("return to main menu")
 
 // isUserInterrupt checks if the error is due to user interruption (Ctrl+C, EOF, etc.)
 func isUserInterrupt(err error) bool {
@@ -30,39 +35,125 @@ func askWithInterruptHandling(prompt survey.Prompt, response interface{}, opts .
 	}
 	return err
 }
+
 func Execute() error {
-	var action string
-	prompt := &survey.Select{
-		Message: "What would you like to do?",
-		Options: []string{"Generate a new project", "Load existing project", "Show version", "Show help", "Quit"},
-	}
-
-	err := survey.AskOne(prompt, &action)
+	// Check if current directory contains gophex.md
+	cwd, err := os.Getwd()
 	if err != nil {
-		// Handle user interruption (Ctrl+C) gracefully
-		if isUserInterrupt(err) {
-			fmt.Println("\nGoodbye! 👋")
-			return nil
-		}
-		return fmt.Errorf("prompt failed: %w", err)
+		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	switch action {
-	case "Generate a new project":
-		return GenerateProject()
-	case "Load existing project":
-		return LoadExistingProject()
-	case "Show version":
-		fmt.Printf("gophex version %s\n", version.GetVersion())
-		return Execute()
-	case "Show help":
-		printHelp()
-		return Execute()
-	case "Quit":
-		return GetProcessManager().HandleGracefulShutdown()
-	default:
-		return fmt.Errorf("unknown action: %s", action)
+	var currentProject *utils.ProjectMetadata
+	var options []string
+	var hasCurrentProject bool
+
+	if utils.HasGophexMetadata(cwd) {
+		// Try to load current project metadata
+		metadata, err := utils.LoadMetadata(cwd)
+		if err == nil {
+			currentProject = metadata
+			hasCurrentProject = true
+			fmt.Printf("📂 Current directory contains Gophex project: %s (%s)\n",
+				metadata.Project.Name, metadata.Project.Type)
+			fmt.Println()
+
+			options = []string{
+				"Load current project",
+				"Generate a new project",
+				"Load different project",
+				"Show version",
+				"Show help",
+				"Quit",
+			}
+		} else {
+			// gophex.md exists but is corrupted
+			fmt.Printf("⚠️  Found gophex.md in current directory but failed to load: %v\n", err)
+			fmt.Println()
+			options = []string{
+				"Generate a new project",
+				"Load existing project",
+				"Show version",
+				"Show help",
+				"Quit",
+			}
+		}
+	} else {
+		options = []string{
+			"Generate a new project",
+			"Load existing project",
+			"Show version",
+			"Show help",
+			"Quit",
+		}
 	}
+
+	for {
+		var action string
+		prompt := &survey.Select{
+			Message: "What would you like to do?",
+			Options: options,
+		}
+
+		err = survey.AskOne(prompt, &action)
+		if err != nil {
+			// Handle user interruption (Ctrl+C) gracefully
+			if isUserInterrupt(err) {
+				fmt.Println("\nGoodbye! 👋")
+				return nil
+			}
+			return fmt.Errorf("prompt failed: %w", err)
+		}
+
+		switch action {
+		case "Load current project":
+			if hasCurrentProject {
+				err = loadCurrentProject(cwd, currentProject)
+				if err == ErrReturnToMenu {
+					continue // Return to main menu
+				}
+				return err
+			}
+			return fmt.Errorf("no current project available")
+		case "Generate a new project":
+			err = GenerateProject()
+			if err == ErrReturnToMenu {
+				continue // Return to main menu
+			}
+			return err
+		case "Load existing project", "Load different project":
+			err = LoadExistingProject()
+			if err == ErrReturnToMenu {
+				continue // Return to main menu
+			}
+			return err
+		case "Show version":
+			fmt.Printf("gophex version %s\n", version.GetVersion())
+			continue // Stay in menu
+		case "Show help":
+			printHelp()
+			continue // Stay in menu
+		case "Quit":
+			return GetProcessManager().HandleGracefulShutdown()
+		default:
+			return fmt.Errorf("unknown action: %s", action)
+		}
+	}
+}
+
+// loadCurrentProject loads the project from the current directory
+func loadCurrentProject(projectPath string, metadata *utils.ProjectMetadata) error {
+	fmt.Printf("📂 Loading current project: %s (%s)\n", metadata.Project.Name, metadata.Project.Type)
+	fmt.Printf("📍 Location: %s\n", projectPath)
+
+	// Create project options for post-generation workflow
+	opts := PostGenerationOptions{
+		ProjectName: metadata.Project.Name,
+		ProjectType: metadata.Project.Type,
+		ProjectPath: projectPath,
+	}
+
+	// Show post-generation menu
+	return ShowPostGenerationMenu(opts)
 }
 
 func printHelp() {

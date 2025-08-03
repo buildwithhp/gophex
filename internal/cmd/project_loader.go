@@ -48,7 +48,7 @@ func browseForProject() error {
 	// Handle empty input
 	if strings.TrimSpace(projectPath) == "" {
 		fmt.Println("❌ No path provided")
-		return Execute() // Return to main menu
+		return ErrReturnToMenu // Return to main menu
 	}
 
 	// Expand ~ to home directory
@@ -61,13 +61,13 @@ func browseForProject() error {
 	absPath, err := filepath.Abs(projectPath)
 	if err != nil {
 		fmt.Printf("❌ Invalid path: %v\n", err)
-		return Execute()
+		return ErrReturnToMenu
 	}
 
 	// Check if directory exists
 	if _, err := os.Stat(absPath); os.IsNotExist(err) {
 		fmt.Printf("❌ Directory does not exist: %s\n", absPath)
-		return Execute()
+		return ErrReturnToMenu
 	}
 
 	// Check if it's a Gophex project
@@ -94,7 +94,7 @@ func browseForProject() error {
 			return GenerateProject()
 		}
 
-		return Execute() // Return to main menu
+		return ErrReturnToMenu // Return to main menu
 	}
 
 	// Load metadata
@@ -103,7 +103,7 @@ func browseForProject() error {
 	if err != nil {
 		fmt.Printf("❌ Failed to load project metadata: %v\n", err)
 		fmt.Println("💡 The gophex.md file may be corrupted or invalid.")
-		return Execute()
+		return ErrReturnToMenu
 	}
 
 	// Create relative path for display
