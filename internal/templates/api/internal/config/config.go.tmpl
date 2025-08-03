@@ -26,8 +26,8 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	PostgresURL string `yaml:"postgres_url"`
-	RedisURL    string `yaml:"redis_url"`
+	PostgresURL string `yaml:"postgres_url"`{{if .RedisConfig.Enabled}}
+	RedisURL    string `yaml:"redis_url"`{{end}}
 }
 
 type JWTConfig struct {
@@ -56,8 +56,8 @@ func Load() (*Config, error) {
 		},
 		Database: DatabaseConfig{
 			PostgresURL: "postgres://localhost:5432/{{.ProjectName}}?sslmode=disable",
-			RedisURL:    "redis://localhost:6379",
-		},
+{{if .RedisConfig.Enabled}}			RedisURL:    "redis://{{.RedisConfig.Host}}:{{.RedisConfig.Port}}{{if .RedisConfig.Database}}/{{.RedisConfig.Database}}{{end}}",
+{{end}}		},
 		JWT: JWTConfig{
 			Secret:          "your-secret-key-change-this-in-production",
 			ExpirationHours: 24,
@@ -84,9 +84,10 @@ func Load() (*Config, error) {
 		config.Database.PostgresURL = dbURL
 	}
 
-	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+{{if .RedisConfig.Enabled}}	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
 		config.Database.RedisURL = redisURL
 	}
+{{end}}
 
 	if jwtSecret := os.Getenv("JWT_SECRET"); jwtSecret != "" {
 		config.JWT.Secret = jwtSecret

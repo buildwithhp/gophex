@@ -38,6 +38,52 @@ func TestProcessTemplate(t *testing.T) {
 	}
 }
 
+func TestProcessTemplateWithRedis(t *testing.T) {
+	content := "{{if .RedisConfig.Enabled}}redis://{{.RedisConfig.Host}}:{{.RedisConfig.Port}}{{end}}"
+	data := TemplateData{
+		ProjectName: "testapi",
+		ModuleName:  "testapi",
+		RedisConfig: RedisConfig{
+			Enabled:  true,
+			Host:     "localhost",
+			Port:     "6379",
+			Password: "",
+			Database: 0,
+		},
+	}
+
+	result, err := ProcessTemplate(content, data)
+	if err != nil {
+		t.Fatalf("Failed to process Redis template: %v", err)
+	}
+
+	expected := "redis://localhost:6379"
+	if result != expected {
+		t.Fatalf("Redis template processing failed.\nExpected: %s\nGot: %s", expected, result)
+	}
+}
+
+func TestProcessTemplateWithoutRedis(t *testing.T) {
+	content := "{{if .RedisConfig.Enabled}}redis://{{.RedisConfig.Host}}:{{.RedisConfig.Port}}{{end}}"
+	data := TemplateData{
+		ProjectName: "testapi",
+		ModuleName:  "testapi",
+		RedisConfig: RedisConfig{
+			Enabled: false,
+		},
+	}
+
+	result, err := ProcessTemplate(content, data)
+	if err != nil {
+		t.Fatalf("Failed to process template without Redis: %v", err)
+	}
+
+	expected := ""
+	if result != expected {
+		t.Fatalf("Template processing without Redis failed.\nExpected: %s\nGot: %s", expected, result)
+	}
+}
+
 func TestGenerateModuleName(t *testing.T) {
 	tests := []struct {
 		input    string

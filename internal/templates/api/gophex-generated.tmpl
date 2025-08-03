@@ -1,0 +1,26 @@
+# Gophex Generated Project Metadata
+# This file tracks generation information for change detection
+# DO NOT DELETE - Used by development tools
+
+project_name={{.ProjectName}}
+project_type=api
+generated_at={{.GeneratedAt}}
+gophex_version={{.GophexVersion}}
+database_type={{.DatabaseConfig.Type}}
+database_config={{.DatabaseConfig.ConfigType}}
+
+# Generated Files (for change detection)
+generated_files=cmd/api/main.go,internal/api/routes/routes.go,internal/database/database.go,internal/database/config.go,internal/database/factory.go,go.mod,README.md,.env,.env.example,migrations/
+
+# Template Checksums (for integrity verification)
+# Format: filename:checksum
+template_checksums=
+cmd/api/main.go:{{.Checksums.MainGo}}
+internal/api/routes/routes.go:{{.Checksums.RoutesGo}}
+internal/database/database.go:{{.Checksums.DatabaseGo}}
+
+# User Customization Markers
+# Add custom markers here to indicate user modifications
+custom_modifications=
+# Example: internal/api/handlers/users.go:custom_business_logic_added
+# Example: internal/database/migrations/003_custom_table.sql:user_created

@@ -7,7 +7,7 @@ A production-ready REST API built with Go following clean architecture principle
 - 🏗️ **Clean Architecture** - Separation of concerns with domain, infrastructure, and API layers
 - 🔐 **JWT Authentication** - Secure user authentication and authorization
 - 📊 **PostgreSQL Database** - Reliable data persistence with migrations
-- 🚀 **Redis Caching** - High-performance caching layer
+{{if .RedisConfig.Enabled}}- 🚀 **Redis Caching** - High-performance caching layer{{end}}
 - 🛡️ **Security Middleware** - CORS, rate limiting, request logging
 - 📝 **API Documentation** - OpenAPI/Swagger specification
 - 🧪 **Comprehensive Testing** - Unit and integration tests
@@ -20,7 +20,7 @@ A production-ready REST API built with Go following clean architecture principle
 
 - Go 1.21+
 - PostgreSQL 13+
-- Redis 6+
+{{if .RedisConfig.Enabled}}- Redis 6+{{end}}
 - Docker (optional)
 
 ### Installation

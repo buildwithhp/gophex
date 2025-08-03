@@ -12,8 +12,8 @@ import (
 
 	"{{.ModuleName}}/internal/api/routes"
 	"{{.ModuleName}}/internal/config"
-	"{{.ModuleName}}/internal/infrastructure/database/postgres"
-	"{{.ModuleName}}/internal/infrastructure/database/redis"
+	"{{.ModuleName}}/internal/database"{{if .RedisConfig.Enabled}}
+	"{{.ModuleName}}/internal/infrastructure/database/redis"{{end}}
 	"{{.ModuleName}}/internal/pkg/logger"
 )
 
@@ -27,14 +27,15 @@ func main() {
 	// Initialize logger
 	logger := logger.New(cfg.LogLevel)
 
-	// Initialize database connections
-	db, err := postgres.Connect(cfg.Database.PostgresURL)
+	// Initialize database
+	ctx := context.Background()
+	db, err := database.InitializeDatabase(ctx, logger)
 	if err != nil {
-		logger.Fatal("Failed to connect to PostgreSQL", "error", err)
+		logger.Fatal("Failed to initialize database", "error", err)
 	}
 	defer db.Close()
 
-	// Initialize Redis
+{{if .RedisConfig.Enabled}}	// Initialize Redis
 	redisClient, err := redis.Connect(cfg.Database.RedisURL)
 	if err != nil {
 		logger.Fatal("Failed to connect to Redis", "error", err)
@@ -43,6 +44,9 @@ func main() {
 
 	// Setup routes
 	router := routes.Setup(db, redisClient, logger, cfg)
+{{else}}	// Setup routes
+	router := routes.Setup(db, logger, cfg)
+{{end}}
 
 	// Create HTTP server
 	server := &http.Server{

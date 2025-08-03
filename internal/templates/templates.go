@@ -11,9 +11,38 @@ import (
 //go:embed api webapp microservice cli
 var templateFS embed.FS
 
+type DatabaseConfig struct {
+	Type         string // mysql, postgresql, mongodb
+	ConfigType   string // cluster, multi-cluster, read-write
+	Host         string
+	Port         string
+	Username     string
+	Password     string
+	DatabaseName string
+	ReadHost     string   // for read-write setup
+	WriteHost    string   // for read-write setup
+	ClusterNodes []string // for multi-cluster
+	SSLMode      string
+	AuthSource   string // for MongoDB
+	ReplicaSet   string // for MongoDB
+}
+
+type RedisConfig struct {
+	Enabled  bool
+	Host     string
+	Port     string
+	Password string
+	Database int
+}
+
 type TemplateData struct {
-	ProjectName string
-	ModuleName  string
+	ProjectName    string
+	ModuleName     string
+	DatabaseConfig DatabaseConfig
+	RedisConfig    RedisConfig
+	GeneratedAt    string
+	GophexVersion  string
+	Checksums      map[string]string
 }
 
 type FileTemplate struct {
@@ -44,9 +73,12 @@ func GetTemplateFiles(templateType string) ([]FileTemplate, error) {
 		relativePath := strings.TrimPrefix(path, templateType+"/")
 		relativePath = strings.TrimSuffix(relativePath, ".tmpl")
 
-		// Handle special case for env.example -> .env.example
+		// Handle special cases for hidden files
 		if relativePath == "env.example" {
 			relativePath = ".env.example"
+		}
+		if relativePath == "env" {
+			relativePath = ".env"
 		}
 
 		files = append(files, FileTemplate{
