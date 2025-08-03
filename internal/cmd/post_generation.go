@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/buildwithhp/gophex/internal/utils"
 )
 
 // PostGenerationOptions represents the available actions after project generation
@@ -61,7 +62,12 @@ func ShowPostGenerationMenu(opts PostGenerationOptions) error {
 			if err := RunQuickStart(opts.ProjectPath, opts.ProjectType); err != nil {
 				fmt.Printf("❌ Quick start failed: %v\n", err)
 			} else {
-				// Quick start includes multiple activities
+				// Quick start includes multiple activities - update both systems
+				if utils.HasGophexMetadata(opts.ProjectPath) {
+					utils.UpdateActivity(opts.ProjectPath, "dependencies_installed", true)
+					utils.UpdateActivity(opts.ProjectPath, "database_migrated", true)
+					utils.UpdateActivity(opts.ProjectPath, "application_started", true)
+				}
 				tracker.UpdateActivity("dependencies_installed", true)
 				tracker.UpdateActivity("database_setup", true)
 				tracker.UpdateActivity("application_started", true)
@@ -70,7 +76,13 @@ func ShowPostGenerationMenu(opts PostGenerationOptions) error {
 			if err := RunDevelopmentWorkflow(opts.ProjectPath, opts.ProjectType); err != nil {
 				fmt.Printf("❌ Development workflow failed: %v\n", err)
 			} else {
-				// Development workflow includes all activities
+				// Development workflow includes all activities - update both systems
+				if utils.HasGophexMetadata(opts.ProjectPath) {
+					utils.UpdateActivity(opts.ProjectPath, "dependencies_installed", true)
+					utils.UpdateActivity(opts.ProjectPath, "database_migrated", true)
+					utils.UpdateActivity(opts.ProjectPath, "application_started", true)
+					utils.UpdateActivity(opts.ProjectPath, "tests_executed", true)
+				}
 				tracker.UpdateActivity("dependencies_installed", true)
 				tracker.UpdateActivity("database_setup", true)
 				tracker.UpdateActivity("application_started", true)
@@ -151,38 +163,72 @@ func ShowPostGenerationMenu(opts PostGenerationOptions) error {
 
 // buildMenuOptions creates dynamic menu options based on project state
 func buildMenuOptions(tracker *ProjectTracker) []string {
+	projectPath := tracker.projectPath
+
 	options := []string{
 		"⚡ Quick start (install deps + start app)",
 		"🔄 Development workflow (full auto-setup)",
 		"📁 Open project directory",
 	}
 
-	// Add database-specific options if database is configured
-	metadata := tracker.GetMetadata()
-	if metadata.Gophex.Database.Configured {
-		prefix := tracker.GetActivityPrefix("database_setup")
-		options = append(options, fmt.Sprintf("🗄️  %sRun database migrations/initialization", prefix))
+	// Check if we have gophex metadata to use the new system
+	if utils.HasGophexMetadata(projectPath) {
+		// Use new metadata system for activity prefixes
+
+		// Add database-specific options if database is configured
+		metadata := tracker.GetMetadata()
+		if metadata.Gophex.Database.Configured {
+			prefix := utils.GetActivityPrefix(projectPath, "database_migrated")
+			options = append(options, fmt.Sprintf("🗄️  %sRun database migrations/initialization", prefix))
+		}
+
+		// Add dependency installation option
+		prefix := utils.GetActivityPrefix(projectPath, "dependencies_installed")
+		options = append(options, fmt.Sprintf("📦 %sInstall dependencies (go mod tidy)", prefix))
+
+		// Add application start option
+		prefix = utils.GetActivityPrefix(projectPath, "application_started")
+		options = append(options, fmt.Sprintf("🚀 %sStart the application", prefix))
+
+		// Add test option
+		prefix = utils.GetActivityPrefix(projectPath, "tests_executed")
+		options = append(options, fmt.Sprintf("🧪 %sRun tests", prefix))
+
+		// Add documentation option
+		prefix = utils.GetActivityPrefix(projectPath, "documentation_viewed")
+		options = append(options, fmt.Sprintf("📖 %sView project documentation", prefix))
+
+		// Add change detection option
+		prefix = utils.GetActivityPrefix(projectPath, "change_detection_run")
+		options = append(options, fmt.Sprintf("🔍 %sRun change detection", prefix))
+	} else {
+		// Fallback to old system
+		metadata := tracker.GetMetadata()
+		if metadata.Gophex.Database.Configured {
+			prefix := tracker.GetActivityPrefix("database_setup")
+			options = append(options, fmt.Sprintf("🗄️  %sRun database migrations/initialization", prefix))
+		}
+
+		// Add dependency installation option
+		prefix := tracker.GetActivityPrefix("dependencies_installed")
+		options = append(options, fmt.Sprintf("📦 %sInstall dependencies (go mod tidy)", prefix))
+
+		// Add application start option
+		prefix = tracker.GetActivityPrefix("application_started")
+		options = append(options, fmt.Sprintf("🚀 %sStart the application", prefix))
+
+		// Add test option
+		prefix = tracker.GetActivityPrefix("tests_run")
+		options = append(options, fmt.Sprintf("🧪 %sRun tests", prefix))
+
+		// Add documentation option
+		prefix = tracker.GetActivityPrefix("documentation_viewed")
+		options = append(options, fmt.Sprintf("📖 %sView project documentation", prefix))
+
+		// Add change detection option
+		prefix = tracker.GetActivityPrefix("change_detection_run")
+		options = append(options, fmt.Sprintf("🔍 %sRun change detection", prefix))
 	}
-
-	// Add dependency installation option
-	prefix := tracker.GetActivityPrefix("dependencies_installed")
-	options = append(options, fmt.Sprintf("📦 %sInstall dependencies (go mod tidy)", prefix))
-
-	// Add application start option
-	prefix = tracker.GetActivityPrefix("application_started")
-	options = append(options, fmt.Sprintf("🚀 %sStart the application", prefix))
-
-	// Add test option
-	prefix = tracker.GetActivityPrefix("tests_run")
-	options = append(options, fmt.Sprintf("🧪 %sRun tests", prefix))
-
-	// Add documentation option
-	prefix = tracker.GetActivityPrefix("documentation_viewed")
-	options = append(options, fmt.Sprintf("📖 %sView project documentation", prefix))
-
-	// Add change detection option
-	prefix = tracker.GetActivityPrefix("change_detection_run")
-	options = append(options, fmt.Sprintf("🔍 %sRun change detection", prefix))
 
 	// Add static options
 	options = append(options,

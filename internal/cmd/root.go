@@ -34,7 +34,7 @@ func Execute() error {
 	var action string
 	prompt := &survey.Select{
 		Message: "What would you like to do?",
-		Options: []string{"Generate a new project", "Show version", "Show help", "Quit"},
+		Options: []string{"Generate a new project", "Load existing project", "Show version", "Show help", "Quit"},
 	}
 
 	err := survey.AskOne(prompt, &action)
@@ -50,6 +50,8 @@ func Execute() error {
 	switch action {
 	case "Generate a new project":
 		return GenerateProject()
+	case "Load existing project":
+		return LoadExistingProject()
 	case "Show version":
 		fmt.Printf("gophex version %s\n", version.GetVersion())
 		return Execute()
@@ -68,6 +70,13 @@ func printHelp() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  gophex                 Start interactive mode")
+	fmt.Println()
+	fmt.Println("Features:")
+	fmt.Println("  - Generate new projects with clean architecture")
+	fmt.Println("  - Load existing Gophex projects by specifying directory path")
+	fmt.Println("  - Track project activities with 're-' prefix for repeated actions")
+	fmt.Println("  - Database configuration without storing sensitive data")
+	fmt.Println("  - Smart validation with helpful error messages")
 	fmt.Println()
 	fmt.Println("Supported project types:")
 	fmt.Println("  - api: REST API with clean architecture")

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -549,15 +548,58 @@ func LoadMetadata(projectPath string) (*ProjectMetadata, error) {
 		return nil, fmt.Errorf("failed to read metadata file: %w", err)
 	}
 
-	// Extract JSON from markdown
-	jsonRegex := regexp.MustCompile(`(?s)` + "```json\n(.*?)\n```")
-	matches := jsonRegex.FindSubmatch(content)
-	if len(matches) < 2 {
-		return nil, fmt.Errorf("no JSON found in metadata file")
+	// Extract JSON from markdown using string operations
+	contentStr := string(content)
+
+	// Try multiple variations of markers to handle different formats
+	startMarkers := []string{
+		"```json\n",
+		"```json\r\n",
+		"``` json\n",
+		"``` json\r\n",
 	}
 
+	endMarkers := []string{
+		"\n```",
+		"\r\n```",
+		"\n```\n",
+		"\r\n```\r\n",
+	}
+
+	var jsonContent string
+	var found bool
+
+	for _, startMarker := range startMarkers {
+		startIdx := strings.Index(contentStr, startMarker)
+		if startIdx == -1 {
+			continue
+		}
+
+		jsonStart := startIdx + len(startMarker)
+
+		for _, endMarker := range endMarkers {
+			endIdx := strings.Index(contentStr[jsonStart:], endMarker)
+			if endIdx != -1 {
+				jsonContent = contentStr[jsonStart : jsonStart+endIdx]
+				found = true
+				break
+			}
+		}
+
+		if found {
+			break
+		}
+	}
+
+	if !found {
+		preview := contentStr
+		if len(preview) > 200 {
+			preview = preview[:200]
+		}
+		return nil, fmt.Errorf("no JSON markers found in metadata file. File content preview: %q", preview)
+	}
 	var metadata ProjectMetadata
-	err = json.Unmarshal(matches[1], &metadata)
+	err = json.Unmarshal([]byte(jsonContent), &metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}

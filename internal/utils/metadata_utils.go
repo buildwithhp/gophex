@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
+	"strings"
 	"time"
 )
 
@@ -28,6 +28,20 @@ type ProjectMetadata struct {
 		SchemaInitialized  bool `json:"schema_initialized"`
 	} `json:"database"`
 	Activities map[string]ActivityInfo `json:"activities"`
+}
+
+// LegacyMetadata represents the old gophex.md format
+type LegacyMetadata struct {
+	Gophex struct {
+		Version     string `json:"version"`
+		GeneratedAt string `json:"generated_at"`
+		Project     struct {
+			Name   string `json:"name"`
+			Type   string `json:"type"`
+			Path   string `json:"path"`
+			Module string `json:"module"`
+		} `json:"project"`
+	} `json:"gophex"`
 }
 
 // UpdateActivity updates the status of a specific activity in the project metadata
@@ -95,19 +109,104 @@ func LoadMetadata(projectPath string) (*ProjectMetadata, error) {
 		return nil, fmt.Errorf("failed to read metadata file: %w", err)
 	}
 
-	// Extract JSON from markdown
-	jsonRegex := regexp.MustCompile(`(?s)` + "```json\n(.*?)\n```")
-	matches := jsonRegex.FindSubmatch(content)
-	if len(matches) < 2 {
-		return nil, fmt.Errorf("no JSON found in metadata file")
+	// Extract JSON from markdown or handle legacy JSON format
+	contentStr := string(content)
+	var jsonContent string
+
+	// First, try to extract from markdown format
+	startMarkers := []string{
+		"```json\n",
+		"```json\r\n",
+		"``` json\n",
+		"``` json\r\n",
 	}
 
+	endMarkers := []string{
+		"\n```",
+		"\r\n```",
+		"\n```\n",
+		"\r\n```\r\n",
+	}
+
+	var found bool
+
+	for _, startMarker := range startMarkers {
+		startIdx := strings.Index(contentStr, startMarker)
+		if startIdx == -1 {
+			continue
+		}
+
+		jsonStart := startIdx + len(startMarker)
+
+		for _, endMarker := range endMarkers {
+			endIdx := strings.Index(contentStr[jsonStart:], endMarker)
+			if endIdx != -1 {
+				jsonContent = contentStr[jsonStart : jsonStart+endIdx]
+				found = true
+				break
+			}
+		}
+
+		if found {
+			break
+		}
+	}
+
+	// If no markdown markers found, try to parse as legacy JSON format
+	if !found {
+		// Check if it looks like JSON (starts with { and contains "gophex")
+		trimmed := strings.TrimSpace(contentStr)
+		if strings.HasPrefix(trimmed, "{") && strings.Contains(trimmed, "\"gophex\"") {
+			jsonContent = trimmed
+			found = true
+		}
+	}
+
+	if !found {
+		preview := contentStr
+		if len(preview) > 200 {
+			preview = preview[:200]
+		}
+		return nil, fmt.Errorf("no JSON markers found and content doesn't appear to be legacy JSON format. File content preview: %q", preview)
+	}
+
+	// Try to parse as new format first
 	var metadata ProjectMetadata
-	err = json.Unmarshal(matches[1], &metadata)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-	}
+	err = json.Unmarshal([]byte(jsonContent), &metadata)
+	if err != nil || metadata.Project.Name == "" {
+		// If new format fails or results in empty project name, try legacy format
+		var legacyMetadata LegacyMetadata
+		err = json.Unmarshal([]byte(jsonContent), &legacyMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal metadata in both new and legacy formats: %w", err)
+		}
 
+		// Validate that we actually got legacy data
+		if legacyMetadata.Gophex.Project.Name == "" {
+			return nil, fmt.Errorf("metadata file appears to be corrupted - no project name found in either format")
+		}
+
+		// Convert legacy format to new format
+		metadata = ProjectMetadata{
+			Project: struct {
+				Name        string `json:"name"`
+				Type        string `json:"type"`
+				LastUpdated string `json:"last_updated"`
+			}{
+				Name:        legacyMetadata.Gophex.Project.Name,
+				Type:        legacyMetadata.Gophex.Project.Type,
+				LastUpdated: legacyMetadata.Gophex.GeneratedAt,
+			},
+			Database: struct {
+				MigrationsExecuted bool `json:"migrations_executed"`
+				SchemaInitialized  bool `json:"schema_initialized"`
+			}{
+				MigrationsExecuted: false,
+				SchemaInitialized:  false,
+			},
+			Activities: make(map[string]ActivityInfo),
+		}
+	}
 	return &metadata, nil
 }
 
