@@ -167,7 +167,7 @@ func StartApplication(projectPath, projectType string) error {
 			Options: []string{
 				"Yes - Install dependencies now",
 				"No - Skip (application may not start)",
-				"❌ Quit",
+				"Quit",
 			},
 		}
 
@@ -179,7 +179,7 @@ func StartApplication(projectPath, projectType string) error {
 		}
 
 		// Handle quit option
-		if strings.HasPrefix(installChoice, "❌") {
+		if installChoice == "Quit" {
 			return GetProcessManager().HandleGracefulShutdown()
 		}
 
@@ -269,7 +269,7 @@ func StartApplication(projectPath, projectType string) error {
 			Options: []string{
 				"Yes - Test health endpoint",
 				"No - Skip test",
-				"❌ Quit",
+				"Quit",
 			},
 		}
 
@@ -280,7 +280,7 @@ func StartApplication(projectPath, projectType string) error {
 			// Don't fail the whole function if health test prompt fails
 		} else {
 			// Handle quit option
-			if strings.HasPrefix(testChoice, "❌") {
+			if testChoice == "Quit" {
 				return GetProcessManager().HandleGracefulShutdown()
 			}
 

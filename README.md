@@ -45,7 +45,8 @@ A powerful, cross-platform CLI tool that generates production-ready Go projects 
 - **Git Integration** - Tracks changes through Git history analysis
 
 ### 🎯 **Enhanced Developer Experience**
-- **Interactive CLI** - User-friendly prompts with Survey library
+- **Fully Interactive CLI** - All functionality through user-friendly MCQ prompts
+- **No Command-Line Arguments** - Simple, consistent interface without complex flags
 - **Single Binary** - Templates embedded using Go's embed filesystem
 - **Comprehensive Documentation** - Auto-generated README and migration guides
 - **Real-Time Feedback** - Progress indicators and status updates
@@ -94,21 +95,33 @@ go install github.com/buildwithhp/gophex@latest
 
 ## 🎯 Usage
 
+### 🎮 Interactive MCQ Interface
+
+Gophex uses a **fully interactive Multiple Choice Question (MCQ) interface** - no command-line arguments needed! Simply run `gophex` and navigate through user-friendly menus.
+
+**Why MCQ-only?**
+- ✅ **Beginner Friendly** - No need to memorize complex command flags
+- ✅ **Consistent Experience** - Same interface across all platforms
+- ✅ **Error Prevention** - Guided choices prevent invalid configurations
+- ✅ **Discovery** - Easily explore all available options
+- ✅ **Accessibility** - Works great with screen readers and assistive tools
+
 ### 🚀 Quick Start
 
 ```bash
 # Install Gophex
 go install github.com/buildwithhp/gophex@latest
 
-# Generate your first project
-gophex generate
+# Start interactive mode
+gophex
 ```
 
 ### 📋 Interactive Workflow
 
-**Step 1: Project Generation**
+**Step 1: Start Gophex**
 ```bash
-gophex generate
+gophex
+# Select: Generate a new project
 ```
 
 **Step 2: Interactive Configuration**
@@ -140,17 +153,17 @@ gophex generate
 ❌ Exit
 ```
 
-### 💻 Command Line Options
+### 💻 Interactive Interface
 
 ```bash
-# Generate a new project with interactive prompts
-gophex generate
+# Start Gophex interactive mode
+gophex
 
-# Show version information
-gophex version
-
-# Show help and usage
-gophex help
+# Main menu options:
+# - Generate a new project
+# - Show version
+# - Show help  
+# - Quit
 ```
 
 ## 📋 Project Types
@@ -160,7 +173,8 @@ gophex help
 Generates a comprehensive REST API with clean architecture and database integration:
 
 ```bash
-gophex generate
+gophex
+# Select: Generate a new project
 # Select: api - REST API with clean architecture
 # Enter project name: myapi
 # Choose database: PostgreSQL/MySQL/MongoDB
@@ -255,7 +269,8 @@ myapi/
 ### 🌍 Web Application
 
 ```bash
-gophex generate
+gophex
+# Select: Generate a new project
 # Select: webapp - Web application with templates
 ```
 
@@ -264,7 +279,8 @@ Generates a web application with HTML templates and static file serving.
 ### 🔧 Microservice
 
 ```bash
-gophex generate
+gophex
+# Select: Generate a new project
 # Select: microservice - Microservice with gRPC support
 ```
 
@@ -273,7 +289,8 @@ Creates a lightweight microservice with health checks and service endpoints.
 ### 💻 CLI Tool
 
 ```bash
-gophex generate
+gophex
+# Select: Generate a new project
 # Select: cli - Command-line tool
 ```
 
@@ -369,7 +386,8 @@ Generates a CLI application using Cobra framework.
 
 1. **Generate and Auto-Setup:**
    ```bash
-   gophex generate
+   gophex
+   # Select: Generate a new project
    # Follow interactive prompts
    # Select "⚡ Quick start" from post-generation menu
    ```
@@ -391,7 +409,8 @@ Generates a CLI application using Cobra framework.
 
 1. **Generate the project:**
    ```bash
-   gophex generate
+   gophex
+   # Select: Generate a new project
    # Select: api - REST API with clean architecture
    # Enter project name: myapi
    # Choose database type: PostgreSQL/MySQL/MongoDB
@@ -689,6 +708,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ✅ **Production-Ready Security** - JWT auth, CORS, rate limiting, input validation
 
 ### 🚀 What's New in v1.0.0
+- **MCQ-Only Interface**: Fully interactive Multiple Choice Questions - no command-line arguments needed
 - **Workflow Revolution**: No more exiting after generation - continue with interactive menu
 - **Cross-Platform Excellence**: Full Windows support with batch files and native commands
 - **Smart Tool Management**: Automatically installs missing tools like golang-migrate
@@ -698,6 +718,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🌟 Why Choose Gophex?
 
 ### 🎯 **For Beginners**
+- **MCQ Interface**: No command-line arguments to learn - just select from menus
 - **Guided Setup**: Interactive prompts guide you through every step
 - **Auto-Installation**: Installs required tools automatically
 - **Learning Aid**: Generated code follows Go best practices

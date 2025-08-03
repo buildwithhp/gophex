@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 )
@@ -48,7 +47,7 @@ func ShowPostGenerationMenu(opts PostGenerationOptions) error {
 				"📖 View project documentation",
 				"🔍 Run change detection",
 				"🆕 Generate another project",
-				"❌ Quit",
+				"Quit",
 			},
 		}
 
@@ -103,7 +102,7 @@ func ShowPostGenerationMenu(opts PostGenerationOptions) error {
 		case choice[:4] == "🆕":
 			// Generate another project
 			return GenerateProject()
-		case strings.HasPrefix(choice, "❌"):
+		case choice == "Quit":
 			return GetProcessManager().HandleGracefulShutdown()
 		}
 

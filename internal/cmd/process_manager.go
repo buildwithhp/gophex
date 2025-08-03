@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -101,7 +100,7 @@ func (pm *ProcessManager) HandleGracefulShutdown() error {
 		Options: []string{
 			"🔄 Keep running in background and exit Gophex",
 			"⏹️  Terminate all processes and exit",
-			"❌ Cancel exit (return to menu)",
+			"Cancel exit (return to menu)",
 		},
 	}
 
@@ -132,7 +131,7 @@ func (pm *ProcessManager) HandleGracefulShutdown() error {
 		fmt.Println("👋 All processes terminated. Thank you for using Gophex!")
 		return nil
 
-	case strings.HasPrefix(action, "❌"):
+	case action == "Cancel exit (return to menu)":
 		fmt.Println("↩️  Returning to menu...")
 		return fmt.Errorf("exit cancelled")
 

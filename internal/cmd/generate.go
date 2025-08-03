@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/buildwithhp/gophex/internal/generator"
@@ -22,7 +21,7 @@ func GenerateProject() error {
 			"webapp - Web application with templates",
 			"microservice - Microservice with gRPC support",
 			"cli - Command-line tool",
-			"❌ Quit",
+			"Quit",
 		},
 	}
 
@@ -37,7 +36,7 @@ func GenerateProject() error {
 	}
 
 	// Handle quit option
-	if strings.HasPrefix(projectType, "❌") {
+	if projectType == "Quit" {
 		return GetProcessManager().HandleGracefulShutdown()
 	}
 
@@ -55,7 +54,7 @@ func GenerateProject() error {
 
 	// Ask for project name
 	projectNamePrompt := &survey.Input{
-		Message: "What is the name of your project? (type 'quit' to exit)",
+		Message: "What is the name of your project?",
 		Help:    "This will be used as the directory name and module name",
 	}
 
@@ -66,11 +65,6 @@ func GenerateProject() error {
 			return GetProcessManager().HandleGracefulShutdown()
 		}
 		return fmt.Errorf("project name input failed: %w", err)
-	}
-
-	// Handle quit command
-	if strings.ToLower(strings.TrimSpace(projectName)) == "quit" {
-		return GetProcessManager().HandleGracefulShutdown()
 	}
 
 	// Get database configuration for API projects
@@ -123,7 +117,7 @@ func GenerateProject() error {
 			Options: []string{
 				"Change directory path",
 				"Cancel project generation",
-				"❌ Quit",
+				"Quit",
 			},
 		}
 
@@ -136,7 +130,7 @@ func GenerateProject() error {
 		}
 
 		// Handle quit option
-		if strings.HasPrefix(action, "❌") {
+		if action == "Quit" {
 			return GetProcessManager().HandleGracefulShutdown()
 		}
 
@@ -203,7 +197,7 @@ func getDatabaseConfiguration(projectName string) (*generator.DatabaseConfig, er
 			"PostgreSQL - Advanced open-source relational database",
 			"MySQL - Popular open-source relational database",
 			"MongoDB - Document-oriented NoSQL database",
-			"❌ Quit",
+			"Quit",
 		},
 	}
 
@@ -216,7 +210,7 @@ func getDatabaseConfiguration(projectName string) (*generator.DatabaseConfig, er
 	}
 
 	// Handle quit option
-	if strings.HasPrefix(dbType, "❌") {
+	if dbType == "Quit" {
 		return nil, GetProcessManager().HandleGracefulShutdown()
 	}
 
@@ -238,7 +232,7 @@ func getDatabaseConfiguration(projectName string) (*generator.DatabaseConfig, er
 			"Single instance - Simple single database server",
 			"Read-Write split - Separate read and write endpoints",
 			"Cluster - Multiple database nodes",
-			"❌ Quit",
+			"Quit",
 		},
 	}
 
@@ -251,7 +245,7 @@ func getDatabaseConfiguration(projectName string) (*generator.DatabaseConfig, er
 	}
 
 	// Handle quit option
-	if strings.HasPrefix(configType, "❌") {
+	if configType == "Quit" {
 		return nil, GetProcessManager().HandleGracefulShutdown()
 	}
 
@@ -284,7 +278,7 @@ func getRedisConfiguration() (*generator.RedisConfig, error) {
 		Options: []string{
 			"Yes - Include Redis support",
 			"No - Skip Redis",
-			"❌ Quit",
+			"Quit",
 		},
 		Help: "Redis provides high-performance caching, session storage, and pub/sub capabilities",
 	}
@@ -298,7 +292,7 @@ func getRedisConfiguration() (*generator.RedisConfig, error) {
 	}
 
 	// Handle quit option
-	if strings.HasPrefix(redisChoice, "❌") {
+	if redisChoice == "Quit" {
 		return nil, GetProcessManager().HandleGracefulShutdown()
 	}
 

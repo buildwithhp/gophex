@@ -35,7 +35,7 @@ func RunDevelopmentWorkflow(projectPath, projectType string) error {
 		Options: []string{
 			"Yes - Start automated workflow",
 			"No - Cancel workflow",
-			"❌ Quit",
+			"Quit",
 		},
 	}
 
@@ -47,7 +47,7 @@ func RunDevelopmentWorkflow(projectPath, projectType string) error {
 	}
 
 	// Handle quit option
-	if strings.HasPrefix(choice, "❌") {
+	if choice == "Quit" {
 		return GetProcessManager().HandleGracefulShutdown()
 	}
 

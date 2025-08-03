@@ -190,8 +190,8 @@ func TestQuitOptionDetection(t *testing.T) {
 		input    string
 		expected bool
 	}{
-		{"❌ Quit", true},
-		{"❌ Exit", true},
+		{"Quit", true},
+		{"Exit", true},
 		{"Yes - Continue", false},
 		{"No - Cancel", false},
 		{"api - REST API", false},
@@ -200,7 +200,7 @@ func TestQuitOptionDetection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
-			isQuit := strings.HasPrefix(test.input, "❌")
+			isQuit := test.input == "Quit" || test.input == "Exit"
 
 			if isQuit != test.expected {
 				t.Errorf("Expected %v for '%s', got %v", test.expected, test.input, isQuit)
