@@ -174,6 +174,13 @@ func GenerateProject() error {
 		}
 	}
 
+	// Create project tracking metadata
+	tracker := NewProjectTracker(projectPath)
+	if err := tracker.CreateInitialMetadata(projectType, projectName, projectPath, dbConfig, redisConfig); err != nil {
+		fmt.Printf("⚠️  Warning: Failed to create project tracking metadata: %v\n", err)
+		// Don't fail the entire generation for this
+	}
+
 	fmt.Printf("✅ Successfully generated %s project '%s' in %s\n", projectType, projectName, projectPath)
 
 	// Show post-generation menu
