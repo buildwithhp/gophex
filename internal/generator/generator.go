@@ -261,6 +261,7 @@ func (g *Generator) createFromTemplate(templateType, projectName, projectPath st
 	// Prepare template data
 	data := templates.TemplateData{
 		ProjectName:   projectName,
+		Title:         projectName, // Set Title as alias for ProjectName
 		ModuleName:    templates.GenerateModuleName(projectName),
 		GeneratedAt:   time.Now().Format(time.RFC3339),
 		GophexVersion: "1.0.0", // TODO: Get from version package

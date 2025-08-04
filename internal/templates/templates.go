@@ -37,6 +37,7 @@ type RedisConfig struct {
 
 type TemplateData struct {
 	ProjectName    string
+	Title          string // Alias for ProjectName for template compatibility
 	ModuleName     string
 	DatabaseConfig DatabaseConfig
 	RedisConfig    RedisConfig
