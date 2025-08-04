@@ -45,6 +45,14 @@ type RateLimitConfig struct {
 	RequestsPerMinute int `yaml:"requests_per_minute"`
 }
 
+// getEnvWithDefault returns the value of an environment variable or a default value if not set
+func getEnvWithDefault(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
+}
+
 func Load() (*Config, error) {
 	config := &Config{
 		// Default values
@@ -74,35 +82,35 @@ func Load() (*Config, error) {
 	}
 
 	// Override with environment variables
-	if port := os.Getenv("PORT"); port != "" {
+	if port := getEnvWithDefault("PORT", ""); port != "" {
 		if p, err := strconv.Atoi(port); err == nil {
 			config.Server.Port = p
 		}
 	}
 
-	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+	if dbURL := getEnvWithDefault("DATABASE_URL", ""); dbURL != "" {
 		config.Database.PostgresURL = dbURL
 	}
 
-{{if .RedisConfig.Enabled}}	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+{{if .RedisConfig.Enabled}}	if redisURL := getEnvWithDefault("REDIS_URL", ""); redisURL != "" {
 		config.Database.RedisURL = redisURL
 	}
 {{end}}
 
-	if jwtSecret := os.Getenv("JWT_SECRET"); jwtSecret != "" {
+	if jwtSecret := getEnvWithDefault("JWT_SECRET", ""); jwtSecret != "" {
 		config.JWT.Secret = jwtSecret
 	}
 
-	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
+	if logLevel := getEnvWithDefault("LOG_LEVEL", ""); logLevel != "" {
 		config.LogLevel = strings.ToLower(logLevel)
 	}
 
-	if corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS"); corsOrigins != "" {
+	if corsOrigins := getEnvWithDefault("CORS_ALLOWED_ORIGINS", ""); corsOrigins != "" {
 		config.CORS.AllowedOrigins = strings.Split(corsOrigins, ",")
 	}
 
 	// Load from config file if exists
-	if configFile := os.Getenv("CONFIG_FILE"); configFile != "" {
+	if configFile := getEnvWithDefault("CONFIG_FILE", ""); configFile != "" {
 		if err := loadFromFile(config, configFile); err != nil {
 			return nil, fmt.Errorf("failed to load config file: %w", err)
 		}

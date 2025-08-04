@@ -26,6 +26,14 @@ import (
 	"{{.ModuleName}}/internal/pkg/logger"
 )
 
+// getEnvWithDefault returns the value of an environment variable or a default value if not set
+func getEnvWithDefault(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
+}
+
 // Database interface defines the contract for database operations
 type Database interface {
 	Connect(ctx context.Context) error
@@ -61,7 +69,7 @@ func (m *MongoDatabase) Connect(ctx context.Context) error {
 	var uri string
 	
 {{if eq .DatabaseConfig.ConfigType "single"}}
-	uri = os.Getenv("DATABASE_URL")
+	uri := getEnvWithDefault("DATABASE_URL", "")
 	if uri == "" {
 		uri = fmt.Sprintf("mongodb://%s:%s@%s:%s/%s",
 			m.config.Username, m.config.Password, m.config.Host, m.config.Port, m.config.DatabaseName)
@@ -71,7 +79,7 @@ func (m *MongoDatabase) Connect(ctx context.Context) error {
 	}
 {{else if eq .DatabaseConfig.ConfigType "read-write"}}
 	// For MongoDB read-write, we'll use the write URL as primary
-	uri = os.Getenv("DATABASE_WRITE_URL")
+	uri := getEnvWithDefault("DATABASE_WRITE_URL", "")
 	if uri == "" {
 		uri = fmt.Sprintf("mongodb://%s:%s@%s:%s/%s",
 			m.config.Username, m.config.Password, m.config.WriteHost, m.config.Port, m.config.DatabaseName)
@@ -80,7 +88,7 @@ func (m *MongoDatabase) Connect(ctx context.Context) error {
 		}
 	}
 {{else if eq .DatabaseConfig.ConfigType "cluster"}}
-	uri = os.Getenv("DATABASE_URL")
+	uri := getEnvWithDefault("DATABASE_URL", "")
 	if uri == "" {
 		hosts := strings.Join(m.config.ClusterNodes, ":"+m.config.Port+",") + ":" + m.config.Port
 		uri = fmt.Sprintf("mongodb://%s:%s@%s/%s",
@@ -162,7 +170,7 @@ func NewSQLDatabase(config *Config, logger logger.Logger) *SQLDatabase {
 func (s *SQLDatabase) Connect(ctx context.Context) error {
 {{if eq .DatabaseConfig.ConfigType "single"}}
 	// Single database connection
-	dbURL := os.Getenv("DATABASE_URL")
+	dbURL := getEnvWithDefault("DATABASE_URL", "")
 	if dbURL == "" {
 {{if eq .DatabaseConfig.Type "postgresql"}}
 		dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
@@ -197,7 +205,7 @@ func (s *SQLDatabase) Connect(ctx context.Context) error {
 
 {{else if eq .DatabaseConfig.ConfigType "read-write"}}
 	// Write database connection
-	writeURL := os.Getenv("DATABASE_WRITE_URL")
+	writeURL := getEnvWithDefault("DATABASE_WRITE_URL", "")
 	if writeURL == "" {
 {{if eq .DatabaseConfig.Type "postgresql"}}
 		writeURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
@@ -218,7 +226,7 @@ func (s *SQLDatabase) Connect(ctx context.Context) error {
 	}
 
 	// Read database connection
-	readURL := os.Getenv("DATABASE_READ_URL")
+	readURL := getEnvWithDefault("DATABASE_READ_URL", "")
 	if readURL == "" {
 {{if eq .DatabaseConfig.Type "postgresql"}}
 		readURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
@@ -266,7 +274,7 @@ func (s *SQLDatabase) Connect(ctx context.Context) error {
 
 {{else if eq .DatabaseConfig.ConfigType "cluster"}}
 	// For cluster setup, we'll use the first node as primary and implement load balancing later
-	clusterURLs := os.Getenv("DATABASE_CLUSTER_URLS")
+	clusterURLs := getEnvWithDefault("DATABASE_CLUSTER_URLS", "")
 	var dbURL string
 	
 	if clusterURLs != "" {

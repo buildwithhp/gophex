@@ -9,6 +9,14 @@ import (
 	"time"
 )
 
+// GetEnvWithDefault returns the value of an environment variable or a default value if not set
+func GetEnvWithDefault(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
+}
+
 // ActivityInfo represents information about a project activity
 type ActivityInfo struct {
 	Completed bool   `json:"completed"`

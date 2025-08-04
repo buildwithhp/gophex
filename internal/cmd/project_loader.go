@@ -53,7 +53,7 @@ func browseForProject() error {
 
 	// Expand ~ to home directory
 	if strings.HasPrefix(projectPath, "~/") {
-		home := os.Getenv("HOME")
+		home := utils.GetEnvWithDefault("HOME", "")
 		projectPath = filepath.Join(home, projectPath[2:])
 	}
 
