@@ -130,6 +130,15 @@ func ShowPostGenerationMenu(opts PostGenerationOptions) error {
 			} else {
 				tracker.UpdateActivity("change_detection_run", true)
 			}
+		case choice[:4] == "🏗️":
+			if err := RunCRUDWizard(opts.ProjectPath); err != nil {
+				if err == ErrReturnToMenu {
+					continue // Return to menu
+				}
+				fmt.Printf("❌ CRUD generation failed: %v\n", err)
+			} else {
+				tracker.UpdateActivity("crud_generated", true)
+			}
 		case choice[:4] == "🆕":
 			// Generate another project
 			return GenerateProject()
@@ -201,6 +210,12 @@ func buildMenuOptions(tracker *ProjectTracker) []string {
 		// Add change detection option
 		prefix = utils.GetActivityPrefix(projectPath, "change_detection_run")
 		options = append(options, fmt.Sprintf("🔍 %sRun change detection", prefix))
+
+		// Add CRUD generation option (only for API projects)
+		if projectMetadata, err := utils.LoadMetadata(projectPath); err == nil && projectMetadata.Project.Type == "api" {
+			prefix = utils.GetActivityPrefix(projectPath, "crud_generated")
+			options = append(options, fmt.Sprintf("🏗️  %sGenerate CRUD operations", prefix))
+		}
 	} else {
 		// Fallback to old system
 		metadata := tracker.GetMetadata()
@@ -228,6 +243,13 @@ func buildMenuOptions(tracker *ProjectTracker) []string {
 		// Add change detection option
 		prefix = tracker.GetActivityPrefix("change_detection_run")
 		options = append(options, fmt.Sprintf("🔍 %sRun change detection", prefix))
+
+		// Add CRUD generation option (only for API projects)
+		trackerMetadata := tracker.GetMetadata()
+		if trackerMetadata.Gophex.Project.Type == "api" {
+			prefix = tracker.GetActivityPrefix("crud_generated")
+			options = append(options, fmt.Sprintf("🏗️  %sGenerate CRUD operations", prefix))
+		}
 	}
 
 	// Add static options
