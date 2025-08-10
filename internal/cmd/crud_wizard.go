@@ -163,7 +163,7 @@ func defineFields(entity *CRUDEntity) error {
 		}
 
 		if useCommon == "Quit" {
-			return nil
+			return ErrUserQuit
 		}
 
 		if useCommon[:2] == "No" {
@@ -194,7 +194,7 @@ func defineFields(entity *CRUDEntity) error {
 			}
 
 			if addMore == "Quit" {
-				return nil
+				return ErrUserQuit
 			}
 		}
 
@@ -348,7 +348,7 @@ func previewAndConfirm(entity *CRUDEntity) error {
 	}
 
 	if confirm == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	if confirm[:2] == "No" {

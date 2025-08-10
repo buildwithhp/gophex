@@ -40,22 +40,38 @@ func RunEnhancedProjectWizard() error {
 
 	// Step 1: Project Architecture Overview
 	if err := showProjectArchitectureOverview(); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
 	// Step 2: Project Type Selection with Education
 	if err := selectProjectTypeWithEducation(config); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
 	// Step 3: Project Naming and Structure
 	if err := configureProjectBasics(config); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
 	// Step 4: Framework Selection (if applicable)
 	if config.Type == "api" {
 		if err := selectFrameworkWithEducation(config); err != nil {
+			if err == ErrUserQuit {
+				fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+				return nil
+			}
 			return err
 		}
 	}
@@ -63,22 +79,38 @@ func RunEnhancedProjectWizard() error {
 	// Step 5: Database Architecture Design
 	if config.Type == "api" || config.Type == "webapp" {
 		if err := designDatabaseArchitecture(config); err != nil {
+			if err == ErrUserQuit {
+				fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+				return nil
+			}
 			return err
 		}
 	}
 
 	// Step 6: Feature Selection and Configuration
 	if err := configureProjectFeatures(config); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
 	// Step 7: Project Structure Visualization
 	if err := visualizeProjectStructure(config); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
 	// Step 8: Generate and Explain
 	if err := generateProjectWithExplanation(config); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
@@ -152,7 +184,7 @@ func showProjectArchitectureOverview() error {
 	}
 
 	if proceed == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	if strings.HasPrefix(proceed, "Tell me more") {
@@ -416,7 +448,7 @@ func selectProjectTypeWithEducation(config *ProjectConfiguration) error {
 	}
 
 	if selected == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	// Extract project type
@@ -535,7 +567,7 @@ func explainSelectedProjectType(projectType string) error {
 	}
 
 	if proceed == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	if strings.HasPrefix(proceed, "No") {
@@ -586,7 +618,7 @@ func configureProjectBasics(config *ProjectConfiguration) error {
 	}
 
 	if confirm == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	if strings.HasPrefix(confirm, "No") {
@@ -675,7 +707,7 @@ func selectFrameworkWithEducation(config *ProjectConfiguration) error {
 	}
 
 	if selected == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	if strings.HasPrefix(selected, "Compare") {
@@ -914,7 +946,7 @@ func selectDatabaseWithEducation(config *ProjectConfiguration) error {
 	}
 
 	if selected == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	if strings.HasPrefix(selected, "Compare") {
@@ -1079,7 +1111,7 @@ func selectDatabaseConfigurationWithEducation(config *ProjectConfiguration) erro
 	}
 
 	if selected == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	// Extract configuration type
@@ -1314,7 +1346,7 @@ func configureRedisWithEducation(config *ProjectConfiguration) error {
 	}
 
 	if redisChoice == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	if strings.HasPrefix(redisChoice, "Tell me more") {
@@ -1481,7 +1513,7 @@ func configureProjectFeatures(config *ProjectConfiguration) error {
 		}
 
 		if include == "Quit" {
-			return nil
+			return ErrUserQuit
 		}
 
 		if strings.HasPrefix(include, "What will") {
@@ -1630,7 +1662,7 @@ func visualizeProjectStructure(config *ProjectConfiguration) error {
 	}
 
 	if proceed == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	if strings.HasPrefix(proceed, "No") {

@@ -98,6 +98,10 @@ func RunEnhancedCRUDWizard(projectPath string) error {
 
 	// Show architecture overview first
 	if err := showArchitectureOverview(); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
@@ -105,36 +109,64 @@ func RunEnhancedCRUDWizard(projectPath string) error {
 
 	// Step 1: Domain Entity Design
 	if err := designDomainEntity(domainObj); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
 	// Step 2: Repository Layer Design
 	if err := designRepositoryLayer(domainObj); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
 	// Step 3: Service Layer Design
 	if err := designServiceLayer(domainObj); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
 	// Step 4: Handler Layer Design
 	if err := designHandlerLayer(domainObj); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
 	// Step 5: Middleware Configuration
 	if err := configureMiddleware(domainObj); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
 	// Step 6: Dependency Injection Visualization
 	if err := visualizeDependencyInjection(domainObj); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
 	// Step 7: Architecture Review and Generation
 	if err := reviewArchitectureAndGenerate(projectPath, domainObj); err != nil {
+		if err == ErrUserQuit {
+			fmt.Println("👋 Thanks for using Gophex! Goodbye!")
+			return nil
+		}
 		return err
 	}
 
@@ -201,7 +233,7 @@ func showArchitectureOverview() error {
 	}
 
 	if proceed == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	if proceed[:2] == "No" {
@@ -456,7 +488,7 @@ func configureMiddleware(domainObj *DomainObject) error {
 		}
 
 		if include == "Quit" {
-			return nil
+			return ErrUserQuit
 		}
 
 		if include[:3] == "Yes" {
@@ -608,7 +640,7 @@ func configureRepositoryMethods(repo *RepositoryConfig, entity *CRUDEntity) erro
 		}
 
 		if include == "Quit" {
-			return nil
+			return ErrUserQuit
 		}
 
 		if include[:3] == "Yes" {
@@ -646,7 +678,7 @@ func configureRepositoryFeatures(repo *RepositoryConfig) error {
 		}
 
 		if include == "Quit" {
-			return nil
+			return ErrUserQuit
 		}
 
 		*feature.field = include[:3] == "Yes"
@@ -702,7 +734,7 @@ func configureBusinessRules(service *ServiceConfig, entity *CRUDEntity) error {
 		}
 
 		if include == "Quit" {
-			return nil
+			return ErrUserQuit
 		}
 
 		if include[:3] == "Yes" {
@@ -754,7 +786,7 @@ func configureDomainEvents(service *ServiceConfig, entity *CRUDEntity) error {
 		}
 
 		if include == "Quit" {
-			return nil
+			return ErrUserQuit
 		}
 
 		if include[:3] == "Yes" {
@@ -791,7 +823,7 @@ func configureServiceFeatures(service *ServiceConfig) error {
 		}
 
 		if include == "Quit" {
-			return nil
+			return ErrUserQuit
 		}
 
 		*feature.field = include[:3] == "Yes"
@@ -837,7 +869,7 @@ func configureAPIEndpoints(handler *HandlerConfig, entity *CRUDEntity) error {
 		}
 
 		if include == "Quit" {
-			return nil
+			return ErrUserQuit
 		}
 
 		if include[:3] == "Yes" {
@@ -874,7 +906,7 @@ func configureHandlerFeatures(handler *HandlerConfig) error {
 		}
 
 		if include == "Quit" {
-			return nil
+			return ErrUserQuit
 		}
 
 		*feature.field = include[:3] == "Yes"
@@ -963,7 +995,7 @@ func reviewArchitectureAndGenerate(projectPath string, domainObj *DomainObject) 
 	}
 
 	if confirm == "Quit" {
-		return nil
+		return ErrUserQuit
 	}
 
 	if confirm[:2] == "No" {

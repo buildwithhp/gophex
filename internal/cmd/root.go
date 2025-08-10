@@ -23,6 +23,9 @@ var files embed.FS
 // ErrReturnToMenu is a special error that signals to return to the main menu
 var ErrReturnToMenu = errors.New("return to main menu")
 
+// ErrUserQuit is a special error that signals the user wants to quit
+var ErrUserQuit = errors.New("user quit")
+
 // isUserInterrupt checks if the error is due to user interruption (Ctrl+C, EOF, etc.)
 func isUserInterrupt(err error) bool {
 	if err == nil {
