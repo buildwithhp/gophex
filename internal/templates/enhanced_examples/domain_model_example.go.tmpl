@@ -1,0 +1,227 @@
+package {{.EntityName}}
+
+import (
+	"time"
+	{{- if .HasTimeFields}}
+	"database/sql/driver"
+	{{- end}}
+)
+
+// {{.EntityName | title}} represents a {{.EntityName}} entity in our domain
+//
+// 🎓 CLEAN ARCHITECTURE LESSON: Domain Entity
+// ==========================================
+// This is a Domain Entity - the core of our business logic. Key principles:
+//
+// 1. BUSINESS FOCUS: Contains business rules and validation, not technical details
+// 2. FRAMEWORK INDEPENDENT: No dependencies on databases, HTTP, or external libraries  
+// 3. RICH BEHAVIOR: Methods that implement business operations, not just data containers
+// 4. IDENTITY: Has a unique identifier that distinguishes it from other entities
+// 5. LIFECYCLE: Can be created, modified, and have business state transitions
+//
+// Notice how this entity:
+// - Focuses on business concepts ({{.EntityName}})
+// - Has validation methods (Validate())
+// - Contains business rules ({{range .BusinessRules}}{{.Name}}, {{end}})
+// - Is independent of database or HTTP concerns
+//
+// 💡 Why this matters:
+// - Business logic is centralized and testable
+// - Can change databases without affecting business rules
+// - Easy to understand what a {{.EntityName}} means in your domain
+type {{.EntityName | title}} struct {
+	// ID is the unique identifier for this {{.EntityName}}
+	// 🔑 Primary key - every entity needs a unique identifier
+	ID int64 `json:"id" db:"id"`
+	
+	{{range .Fields}}
+	// {{.Name}} {{.Description}}
+	{{- if .BusinessRule}}
+	// 📋 Business Rule: {{.BusinessRule}}
+	{{- end}}
+	{{.Name}} {{.Type}} `json:"{{.JSONTag}}" db:"{{.DBTag}}"{{if .Required}} validate:"required"{{end}}{{if .Unique}} unique:"true"{{end}}`
+	{{end}}
+	
+	// Audit fields - track entity lifecycle
+	// 🕒 These fields help with debugging, compliance, and business intelligence
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// Validate performs business validation on the {{.EntityName}} entity
+//
+// 🎓 BUSINESS VALIDATION PATTERN
+// =============================
+// Domain entities should validate their own business rules.
+// This keeps business logic centralized and makes testing easier.
+//
+// This method checks:
+{{range .BusinessRules}}
+// - {{.Name}}: {{.Description}}
+{{end}}
+//
+// 💡 Why validate in the domain layer?
+// - Business rules are centralized in one place
+// - Can't create invalid entities anywhere in the system
+// - Easy to test business rules in isolation
+// - Changes to business rules only affect the domain layer
+func ({{.EntityName | lower}} *{{.EntityName | title}}) Validate() error {
+	{{range .BusinessRules}}
+	// Validate: {{.Name}}
+	{{.ValidationCode}}
+	{{end}}
+	
+	return nil
+}
+
+{{if .HasStatusField}}
+// IsActive checks if the {{.EntityName}} is in an active state
+//
+// 🎓 BUSINESS QUERY METHODS
+// ========================
+// Domain entities can have methods that answer business questions.
+// These methods encapsulate business logic about the entity's state.
+func ({{.EntityName | lower}} *{{.EntityName | title}}) IsActive() bool {
+	return {{.EntityName | lower}}.Status == "active"
+}
+
+// Activate sets the {{.EntityName}} to active status
+//
+// 🎓 BUSINESS COMMAND METHODS  
+// ==========================
+// Domain entities can have methods that perform business operations.
+// These methods change the entity's state according to business rules.
+func ({{.EntityName | lower}} *{{.EntityName | title}}) Activate() error {
+	// Business rule: Only inactive {{.EntityName}}s can be activated
+	if {{.EntityName | lower}}.IsActive() {
+		return fmt.Errorf("{{.EntityName}} is already active")
+	}
+	
+	{{.EntityName | lower}}.Status = "active"
+	{{.EntityName | lower}}.UpdatedAt = time.Now()
+	
+	return nil
+}
+{{end}}
+
+// BeforeCreate is called before creating a new {{.EntityName}}
+//
+// 🎓 ENTITY LIFECYCLE HOOKS
+// =========================
+// These methods are called at specific points in the entity lifecycle.
+// They ensure business rules are enforced automatically.
+func ({{.EntityName | lower}} *{{.EntityName | title}}) BeforeCreate() error {
+	now := time.Now()
+	{{.EntityName | lower}}.CreatedAt = now
+	{{.EntityName | lower}}.UpdatedAt = now
+	
+	// Apply business rules for new {{.EntityName}}s
+	{{range .CreationRules}}
+	{{.Code}}
+	{{end}}
+	
+	return {{.EntityName | lower}}.Validate()
+}
+
+// BeforeUpdate is called before updating an existing {{.EntityName}}
+//
+// 🎓 UPDATE LIFECYCLE HOOKS
+// =========================
+// Ensures business rules are enforced on every update.
+func ({{.EntityName | lower}} *{{.EntityName | title}}) BeforeUpdate() error {
+	{{.EntityName | lower}}.UpdatedAt = time.Now()
+	
+	// Apply business rules for {{.EntityName}} updates
+	{{range .UpdateRules}}
+	{{.Code}}
+	{{end}}
+	
+	return {{.EntityName | lower}}.Validate()
+}
+
+{{if .HasEvents}}
+// DomainEvents returns the domain events that should be published
+//
+// 🎓 DOMAIN EVENTS PATTERN
+// ========================
+// Domain events represent something important that happened in the domain.
+// They allow different parts of the system to react to business events.
+//
+// Events for {{.EntityName}}:
+{{range .Events}}
+// - {{.Name}}: {{.Description}}
+{{end}}
+//
+// 💡 Why use domain events?
+// - Loose coupling between different parts of the system
+// - Easy to add new features that react to business events
+// - Audit trail of what happened in the system
+// - Can trigger side effects (emails, notifications, etc.)
+func ({{.EntityName | lower}} *{{.EntityName | title}}) DomainEvents() []DomainEvent {
+	// This would typically be implemented with an event store
+	// For now, we'll return the events that should be published
+	return {{.EntityName | lower}}.events
+}
+{{end}}
+
+// String returns a string representation of the {{.EntityName}}
+//
+// 🎓 DEBUGGING AND LOGGING
+// ========================
+// Implementing String() makes debugging easier and provides
+// a consistent way to represent the entity in logs.
+func ({{.EntityName | lower}} *{{.EntityName | title}}) String() string {
+	return fmt.Sprintf("{{.EntityName | title}}{ID: %d, {{.PrimaryDisplayField}}: %s}", 
+		{{.EntityName | lower}}.ID, {{.EntityName | lower}}.{{.PrimaryDisplayField}})
+}
+
+{{if .HasEvents}}
+// DomainEvent represents something important that happened in the domain
+//
+// 🎓 DOMAIN EVENT STRUCTURE
+// =========================
+// Domain events capture business-meaningful occurrences.
+// They contain all the information needed for other parts of the system to react.
+type DomainEvent struct {
+	// EventType identifies what kind of event this is
+	EventType string `json:"event_type"`
+	
+	// AggregateID identifies which entity this event relates to
+	AggregateID int64 `json:"aggregate_id"`
+	
+	// Payload contains the event-specific data
+	Payload map[string]interface{} `json:"payload"`
+	
+	// OccurredAt records when the event happened
+	OccurredAt time.Time `json:"occurred_at"`
+}
+{{end}}
+
+// 🎓 WHAT'S NEXT?
+// ===============
+// Now that you have a domain entity, you'll need:
+//
+// 1. REPOSITORY INTERFACE (repository.go)
+//    - Defines how to save/load {{.EntityName}}s
+//    - Lives in the domain layer (interface)
+//    - Implementation lives in infrastructure layer
+//
+// 2. SERVICE LAYER (service.go) 
+//    - Orchestrates business operations
+//    - Uses repository to persist changes
+//    - Publishes domain events
+//
+// 3. HANDLER LAYER (handlers/{{.EntityName}}.go)
+//    - Handles HTTP requests
+//    - Converts between HTTP and domain models
+//    - Calls service layer
+//
+// 4. REPOSITORY IMPLEMENTATION (infrastructure/repository/{{.EntityName}}_repository.go)
+//    - Database-specific implementation
+//    - Implements the repository interface
+//
+// This separation allows you to:
+// - Test business logic without a database
+// - Change databases without changing business logic  
+// - Add new interfaces (GraphQL, gRPC) easily
+// - Keep business rules centralized and consistent

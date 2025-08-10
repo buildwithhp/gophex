@@ -39,6 +39,7 @@ type Service interface {
 type CreateProjectRequest struct {
 	Name           string
 	Type           ProjectType
+	Framework      FrameworkType // Framework for API projects (optional for non-API projects)
 	Path           string
 	DatabaseConfig *DatabaseConfig
 	RedisConfig    *RedisConfig
@@ -56,6 +57,16 @@ func (r CreateProjectRequest) Validate() error {
 
 	if strings.TrimSpace(r.Path) == "" {
 		return NewValidationError("path", r.Path, "project path cannot be empty")
+	}
+
+	// For API projects, framework is required and must be valid
+	if r.Type == ProjectTypeAPI {
+		if r.Framework == "" {
+			return NewValidationError("framework", r.Framework, "framework is required for API projects")
+		}
+		if !r.Framework.IsValid() {
+			return NewValidationError("framework", r.Framework, "invalid framework type")
+		}
 	}
 
 	return nil
@@ -119,6 +130,7 @@ func (s *service) CreateProject(ctx context.Context, req CreateProjectRequest) (
 	project := &Project{
 		Name:           req.Name,
 		Type:           req.Type,
+		Framework:      req.Framework,
 		Path:           req.Path,
 		ModuleName:     s.generateModuleName(req.Name),
 		GeneratedAt:    now,

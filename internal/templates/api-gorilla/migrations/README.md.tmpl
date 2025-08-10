@@ -1,0 +1,203 @@
+# Database Migrations for {{.ProjectName}}
+
+This directory contains database migration files and initialization scripts for your {{.ProjectName}} application.
+
+## Database Configuration
+
+- **Database Type**: {{.DatabaseConfig.Type}}
+- **Configuration**: {{.DatabaseConfig.ConfigType}}
+{{if eq .DatabaseConfig.ConfigType "single"}}
+- **Host**: {{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}}
+{{else if eq .DatabaseConfig.ConfigType "read-write"}}
+- **Write Host**: {{.DatabaseConfig.WriteHost}}:{{.DatabaseConfig.Port}}
+- **Read Host**: {{.DatabaseConfig.ReadHost}}:{{.DatabaseConfig.Port}}
+{{else if eq .DatabaseConfig.ConfigType "cluster"}}
+- **Cluster Nodes**: {{range $index, $node := .DatabaseConfig.ClusterNodes}}{{if $index}}, {{end}}{{$node}}:{{$.DatabaseConfig.Port}}{{end}}
+{{end}}
+- **Database Name**: {{.DatabaseConfig.DatabaseName}}
+
+## Getting Started
+
+{{if eq .DatabaseConfig.Type "mongodb"}}
+### MongoDB Setup
+
+1. **Initialize Collections and Indexes**:
+   ```bash
+   ./scripts/migrate.sh init
+   ```
+
+2. **Check Status**:
+   ```bash
+   ./scripts/migrate.sh status
+   ```
+
+### Manual MongoDB Setup
+
+If you prefer to run the initialization manually:
+
+```bash
+# Using mongosh (MongoDB 5.0+)
+mongosh "{{if eq .DatabaseConfig.ConfigType "single"}}mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.AuthSource}}?authSource={{.DatabaseConfig.AuthSource}}{{end}}{{else if eq .DatabaseConfig.ConfigType "cluster"}}mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{range $index, $node := .DatabaseConfig.ClusterNodes}}{{if $index}},{{end}}{{$node}}:{{$.DatabaseConfig.Port}}{{end}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.ReplicaSet}}?replicaSet={{.DatabaseConfig.ReplicaSet}}{{end}}{{if .DatabaseConfig.AuthSource}}{{if .DatabaseConfig.ReplicaSet}}&{{else}}?{{end}}authSource={{.DatabaseConfig.AuthSource}}{{end}}{{end}}" < migrations/mongodb_init.js
+
+# Or using legacy mongo shell
+mongo "{{if eq .DatabaseConfig.ConfigType "single"}}mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.AuthSource}}?authSource={{.DatabaseConfig.AuthSource}}{{end}}{{else if eq .DatabaseConfig.ConfigType "cluster"}}mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{range $index, $node := .DatabaseConfig.ClusterNodes}}{{if $index}},{{end}}{{$node}}:{{$.DatabaseConfig.Port}}{{end}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.ReplicaSet}}?replicaSet={{.DatabaseConfig.ReplicaSet}}{{end}}{{if .DatabaseConfig.AuthSource}}{{if .DatabaseConfig.ReplicaSet}}&{{else}}?{{end}}authSource={{.DatabaseConfig.AuthSource}}{{end}}{{end}}" < migrations/mongodb_init.js
+```
+
+### Collections Created
+
+- **users**: User accounts with email/username uniqueness
+- **posts**: Blog posts with author references
+
+### Indexes Created
+
+- Users: email (unique), username (unique), isActive, createdAt
+- Posts: authorId, slug (unique), status, publishedAt, createdAt, text search
+
+{{else}}
+### {{if eq .DatabaseConfig.Type "postgresql"}}PostgreSQL{{else if eq .DatabaseConfig.Type "mysql"}}MySQL{{else if eq .DatabaseConfig.Type "mongodb"}}MongoDB{{else}}Database{{end}} Setup
+
+1. **Install golang-migrate**:
+   ```bash
+   go install -tags '{{.DatabaseConfig.Type}}' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+   ```
+
+2. **Run Migrations**:
+   ```bash
+   # Apply all pending migrations
+   ./scripts/migrate.sh up
+   
+   # Apply specific number of migrations
+   ./scripts/migrate.sh up 1
+   ```
+
+3. **Check Migration Status**:
+   ```bash
+   ./scripts/migrate.sh status
+   ```
+
+4. **Rollback Migrations**:
+   ```bash
+   # Rollback last migration
+   ./scripts/migrate.sh down 1
+   ```
+
+5. **Create New Migration**:
+   ```bash
+   ./scripts/migrate.sh create add_new_table
+   ```
+
+### Available Migration Commands
+
+- `up [N]` - Apply all or N up migrations
+- `down [N]` - Apply all or N down migrations  
+- `force V` - Set version V but don't run migration
+- `version` - Print current migration version
+- `create NAME` - Create new migration files
+- `status` - Show migration status
+
+### Migration Files
+
+- `000001_create_users_table.up.sql` - Creates users table
+- `000001_create_users_table.down.sql` - Drops users table
+- `000002_create_posts_table.up.sql` - Creates posts table
+- `000002_create_posts_table.down.sql` - Drops posts table
+
+{{end}}
+
+## Environment Variables
+
+Make sure to set the appropriate environment variables in your `.env` file:
+
+{{if eq .DatabaseConfig.Type "mongodb"}}
+```bash
+{{if eq .DatabaseConfig.ConfigType "single"}}
+DATABASE_URL=mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.AuthSource}}?authSource={{.DatabaseConfig.AuthSource}}{{end}}
+{{else if eq .DatabaseConfig.ConfigType "read-write"}}
+DATABASE_WRITE_URL=mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.WriteHost}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.AuthSource}}?authSource={{.DatabaseConfig.AuthSource}}{{end}}
+DATABASE_READ_URL=mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.ReadHost}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.AuthSource}}?authSource={{.DatabaseConfig.AuthSource}}{{end}}
+{{else if eq .DatabaseConfig.ConfigType "cluster"}}
+DATABASE_URL=mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{range $index, $node := .DatabaseConfig.ClusterNodes}}{{if $index}},{{end}}{{$node}}:{{$.DatabaseConfig.Port}}{{end}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.ReplicaSet}}?replicaSet={{.DatabaseConfig.ReplicaSet}}{{end}}{{if .DatabaseConfig.AuthSource}}{{if .DatabaseConfig.ReplicaSet}}&{{else}}?{{end}}authSource={{.DatabaseConfig.AuthSource}}{{end}}
+{{end}}
+```
+{{else}}
+```bash
+{{if eq .DatabaseConfig.ConfigType "single"}}
+{{if eq .DatabaseConfig.Type "postgresql"}}
+DATABASE_URL=postgres://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}?sslmode={{.DatabaseConfig.SSLMode}}
+{{else if eq .DatabaseConfig.Type "mysql"}}
+DATABASE_URL={{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@tcp({{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}})/{{.DatabaseConfig.DatabaseName}}?tls={{.DatabaseConfig.SSLMode}}
+{{end}}
+{{else if eq .DatabaseConfig.ConfigType "read-write"}}
+{{if eq .DatabaseConfig.Type "postgresql"}}
+DATABASE_WRITE_URL=postgres://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.WriteHost}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}?sslmode={{.DatabaseConfig.SSLMode}}
+DATABASE_READ_URL=postgres://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.ReadHost}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}?sslmode={{.DatabaseConfig.SSLMode}}
+{{else if eq .DatabaseConfig.Type "mysql"}}
+DATABASE_WRITE_URL={{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@tcp({{.DatabaseConfig.WriteHost}}:{{.DatabaseConfig.Port}})/{{.DatabaseConfig.DatabaseName}}?tls={{.DatabaseConfig.SSLMode}}
+DATABASE_READ_URL={{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@tcp({{.DatabaseConfig.ReadHost}}:{{.DatabaseConfig.Port}})/{{.DatabaseConfig.DatabaseName}}?tls={{.DatabaseConfig.SSLMode}}
+{{end}}
+{{else if eq .DatabaseConfig.ConfigType "cluster"}}
+{{if eq .DatabaseConfig.Type "postgresql"}}
+DATABASE_CLUSTER_URLS={{range $index, $node := .DatabaseConfig.ClusterNodes}}{{if $index}},{{end}}postgres://{{$.DatabaseConfig.Username}}:{{$.DatabaseConfig.Password}}@{{$node}}:{{$.DatabaseConfig.Port}}/{{$.DatabaseConfig.DatabaseName}}?sslmode={{$.DatabaseConfig.SSLMode}}{{end}}
+{{else if eq .DatabaseConfig.Type "mysql"}}
+DATABASE_CLUSTER_URLS={{range $index, $node := .DatabaseConfig.ClusterNodes}}{{if $index}},{{end}}{{$.DatabaseConfig.Username}}:{{$.DatabaseConfig.Password}}@tcp({{$node}}:{{$.DatabaseConfig.Port}})/{{$.DatabaseConfig.DatabaseName}}?tls={{$.DatabaseConfig.SSLMode}}{{end}}
+{{end}}
+{{end}}
+```
+{{end}}
+
+## Troubleshooting
+
+{{if eq .DatabaseConfig.Type "mongodb"}}
+### MongoDB Issues
+
+1. **Connection Failed**: Check if MongoDB is running and accessible
+2. **Authentication Failed**: Verify username, password, and authSource
+3. **Database Not Found**: MongoDB will create the database automatically when first accessed
+
+### Useful MongoDB Commands
+
+```javascript
+// Show all databases
+show dbs
+
+// Switch to your database
+use {{.DatabaseConfig.DatabaseName}}
+
+// Show collections
+show collections
+
+// Check indexes
+db.users.getIndexes()
+db.posts.getIndexes()
+```
+
+{{else}}
+### {{if eq .DatabaseConfig.Type "postgresql"}}PostgreSQL{{else if eq .DatabaseConfig.Type "mysql"}}MySQL{{else if eq .DatabaseConfig.Type "mongodb"}}MongoDB{{else}}Database{{end}} Issues
+
+1. **Migration Failed**: Check database connectivity and permissions
+2. **Dirty State**: Use `force` command to set version manually
+3. **Connection Refused**: Verify database server is running
+
+### Useful Commands
+
+```bash
+# Check database connectivity
+{{if eq .DatabaseConfig.Type "postgresql"}}
+psql "{{if eq .DatabaseConfig.ConfigType "single"}}postgres://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}?sslmode={{.DatabaseConfig.SSLMode}}{{end}}" -c "SELECT version();"
+{{else if eq .DatabaseConfig.Type "mysql"}}
+mysql -h {{.DatabaseConfig.Host}} -P {{.DatabaseConfig.Port}} -u {{.DatabaseConfig.Username}} -p{{.DatabaseConfig.Password}} {{.DatabaseConfig.DatabaseName}} -e "SELECT VERSION();"
+{{end}}
+
+# Check migration status
+./scripts/migrate.sh version
+```
+{{end}}
+
+## Next Steps
+
+1. Review and customize the migration files as needed
+2. Run the migrations/initialization
+3. Start your application
+4. Create additional migrations as your schema evolves
+
+For more information, see the [golang-migrate documentation](https://github.com/golang-migrate/migrate) {{if eq .DatabaseConfig.Type "mongodb"}}or [MongoDB documentation](https://docs.mongodb.com/){{end}}.

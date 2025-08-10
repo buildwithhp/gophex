@@ -8,7 +8,7 @@ import (
 	"text/template"
 )
 
-//go:embed api webapp microservice cli
+//go:embed api api-gin api-echo api-gorilla webapp microservice cli
 var templateFS embed.FS
 
 type DatabaseConfig struct {
@@ -39,6 +39,7 @@ type TemplateData struct {
 	ProjectName    string
 	Title          string // Alias for ProjectName for template compatibility
 	ModuleName     string
+	Framework      string // Web framework (gin, echo, gorilla) for API projects
 	DatabaseConfig DatabaseConfig
 	RedisConfig    RedisConfig
 	GeneratedAt    string

@@ -1,0 +1,8 @@
+{{if or (eq .DatabaseConfig.Type "postgresql") (eq .DatabaseConfig.Type "mysql")}}
+-- Drop posts table
+{{if eq .DatabaseConfig.Type "postgresql"}}
+DROP TRIGGER IF EXISTS update_posts_updated_at ON posts;
+{{end}}
+
+DROP TABLE IF EXISTS posts;
+{{end}}

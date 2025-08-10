@@ -24,12 +24,58 @@ func TestProjectGeneration(t *testing.T) {
 		name        string
 		projectType string
 		projectName string
+		framework   string
 		expectFiles []string
 	}{
 		{
-			name:        "API Project Generation",
+			name:        "API Project Generation - Gin",
 			projectType: "api",
-			projectName: "test-api",
+			projectName: "test-api-gin",
+			framework:   "gin",
+			expectFiles: []string{
+				"go.mod",
+				"cmd/api/main.go",
+				"internal/config/config.go",
+				"internal/api/handlers/health.go",
+				"internal/api/handlers/auth.go",
+				"internal/api/handlers/users.go",
+				"internal/api/handlers/posts.go",
+				"internal/api/middleware/cors.go",
+				"internal/api/middleware/logging.go",
+				"internal/api/routes/routes.go",
+				"internal/database/database.go",
+				"migrations",
+				"README.md",
+				"gophex.md",
+			},
+		},
+		{
+			name:        "API Project Generation - Echo",
+			projectType: "api",
+			projectName: "test-api-echo",
+			framework:   "echo",
+			expectFiles: []string{
+				"go.mod",
+				"cmd/api/main.go",
+				"internal/config/config.go",
+				"internal/api/handlers/health.go",
+				"internal/api/handlers/auth.go",
+				"internal/api/handlers/users.go",
+				"internal/api/handlers/posts.go",
+				"internal/api/middleware/cors.go",
+				"internal/api/middleware/logging.go",
+				"internal/api/routes/routes.go",
+				"internal/database/database.go",
+				"migrations",
+				"README.md",
+				"gophex.md",
+			},
+		},
+		{
+			name:        "API Project Generation - Gorilla",
+			projectType: "api",
+			projectName: "test-api-gorilla",
+			framework:   "gorilla",
 			expectFiles: []string{
 				"go.mod",
 				"cmd/api/main.go",
@@ -51,6 +97,7 @@ func TestProjectGeneration(t *testing.T) {
 			name:        "CLI Project Generation",
 			projectType: "cli",
 			projectName: "test-cli",
+			framework:   "", // No framework for CLI
 			expectFiles: []string{
 				"go.mod",
 				"cmd/main.go",
@@ -63,6 +110,7 @@ func TestProjectGeneration(t *testing.T) {
 			name:        "WebApp Project Generation",
 			projectType: "webapp",
 			projectName: "test-webapp",
+			framework:   "", // No framework for WebApp
 			expectFiles: []string{
 				"go.mod",
 				"cmd/webapp/main.go",
@@ -76,6 +124,7 @@ func TestProjectGeneration(t *testing.T) {
 			name:        "Microservice Project Generation",
 			projectType: "microservice",
 			projectName: "test-microservice",
+			framework:   "", // No framework for Microservice
 			expectFiles: []string{
 				"go.mod",
 				"cmd/server/main.go",
@@ -92,7 +141,12 @@ func TestProjectGeneration(t *testing.T) {
 
 			// Generate project
 			gen := generator.New()
-			err := gen.Generate(test.projectType, test.projectName, projectPath)
+			var err error
+			if test.framework != "" && test.projectType == "api" {
+				err = gen.GenerateWithFramework(test.projectType, test.projectName, projectPath, test.framework, nil, nil)
+			} else {
+				err = gen.Generate(test.projectType, test.projectName, projectPath)
+			}
 			if err != nil {
 				t.Fatalf("Failed to generate %s project: %v", test.projectType, err)
 			}

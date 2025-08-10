@@ -1,0 +1,68 @@
+package middleware
+
+import (
+	"context"
+	"net/http"
+	"strings"
+
+	"{{.ModuleName}}/internal/api/responses"
+	"{{.ModuleName}}/internal/infrastructure/auth"
+)
+
+type AuthMiddleware struct {
+	jwtService auth.JWTService
+}
+
+func NewAuthMiddleware(jwtService auth.JWTService) *AuthMiddleware {
+	return &AuthMiddleware{
+		jwtService: jwtService,
+	}
+}
+
+func (m *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			responses.Error(w, http.StatusUnauthorized, "Authorization header required", nil)
+			return
+		}
+
+		tokenParts := strings.Split(authHeader, " ")
+		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+			responses.Error(w, http.StatusUnauthorized, "Invalid authorization header format", nil)
+			return
+		}
+
+		token := tokenParts[1]
+		claims, err := m.jwtService.ValidateToken(token)
+		if err != nil {
+			responses.Error(w, http.StatusUnauthorized, "Invalid or expired token", err)
+			return
+		}
+
+		// Add user information to request context
+		ctx := context.WithValue(r.Context(), "user_id", claims.UserID)
+		ctx = context.WithValue(ctx, "user_email", claims.Email)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (m *AuthMiddleware) OptionalAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "" {
+			tokenParts := strings.Split(authHeader, " ")
+			if len(tokenParts) == 2 && tokenParts[0] == "Bearer" {
+				token := tokenParts[1]
+				if claims, err := m.jwtService.ValidateToken(token); err == nil {
+					ctx := context.WithValue(r.Context(), "user_id", claims.UserID)
+					ctx = context.WithValue(ctx, "user_email", claims.Email)
+					r = r.WithContext(ctx)
+				}
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}

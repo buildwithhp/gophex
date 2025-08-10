@@ -1,0 +1,153 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"time"
+
+	"{{.ModuleName}}/internal/domain/post"
+)
+
+type postRepository struct {
+	db *sql.DB
+}
+
+func NewPostRepository(db *sql.DB) post.Repository {
+	return &postRepository{db: db}
+}
+
+func (r *postRepository) Create(ctx context.Context, p *post.Post) (*post.Post, error) {
+	query := `
+		INSERT INTO posts (title, content, user_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, created_at, updated_at`
+
+	now := time.Now()
+	err := r.db.QueryRowContext(ctx, query, p.Title, p.Content, p.UserID, now, now).
+		Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create post: %w", err)
+	}
+
+	return p, nil
+}
+
+func (r *postRepository) GetByID(ctx context.Context, id int64) (*post.Post, error) {
+	query := `
+		SELECT id, title, content, user_id, created_at, updated_at
+		FROM posts
+		WHERE id = $1`
+
+	p := &post.Post{}
+	err := r.db.QueryRowContext(ctx, query, id).
+		Scan(&p.ID, &p.Title, &p.Content, &p.UserID, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("post not found")
+		}
+		return nil, fmt.Errorf("failed to get post: %w", err)
+	}
+
+	return p, nil
+}
+
+func (r *postRepository) GetAll(ctx context.Context, page, limit int, userID int64) ([]*post.Post, int64, error) {
+	// Build query based on whether userID filter is provided
+	var countQuery, selectQuery string
+	var args []interface{}
+
+	if userID > 0 {
+		countQuery = "SELECT COUNT(*) FROM posts WHERE user_id = $1"
+		selectQuery = `
+			SELECT id, title, content, user_id, created_at, updated_at
+			FROM posts
+			WHERE user_id = $1
+			ORDER BY created_at DESC
+			LIMIT $2 OFFSET $3`
+		args = []interface{}{userID, limit, (page - 1) * limit}
+	} else {
+		countQuery = "SELECT COUNT(*) FROM posts"
+		selectQuery = `
+			SELECT id, title, content, user_id, created_at, updated_at
+			FROM posts
+			ORDER BY created_at DESC
+			LIMIT $1 OFFSET $2`
+		args = []interface{}{limit, (page - 1) * limit}
+	}
+
+	// Get total count
+	var total int64
+	if userID > 0 {
+		err := r.db.QueryRowContext(ctx, countQuery, userID).Scan(&total)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to count posts: %w", err)
+		}
+	} else {
+		err := r.db.QueryRowContext(ctx, countQuery).Scan(&total)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to count posts: %w", err)
+		}
+	}
+
+	// Get posts with pagination
+	rows, err := r.db.QueryContext(ctx, selectQuery, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get posts: %w", err)
+	}
+	defer rows.Close()
+
+	var posts []*post.Post
+	for rows.Next() {
+		p := &post.Post{}
+		err := rows.Scan(&p.ID, &p.Title, &p.Content, &p.UserID, &p.CreatedAt, &p.UpdatedAt)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan post: %w", err)
+		}
+		posts = append(posts, p)
+	}
+
+	return posts, total, nil
+}
+
+func (r *postRepository) Update(ctx context.Context, id int64, userID int64, p *post.Post) (*post.Post, error) {
+	query := `
+		UPDATE posts
+		SET title = COALESCE(NULLIF($1, ''), title),
+		    content = COALESCE(NULLIF($2, ''), content),
+		    updated_at = $3
+		WHERE id = $4 AND user_id = $5
+		RETURNING id, title, content, user_id, created_at, updated_at`
+
+	now := time.Now()
+	updated := &post.Post{}
+	err := r.db.QueryRowContext(ctx, query, p.Title, p.Content, now, id, userID).
+		Scan(&updated.ID, &updated.Title, &updated.Content, &updated.UserID, &updated.CreatedAt, &updated.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("post not found or access denied")
+		}
+		return nil, fmt.Errorf("failed to update post: %w", err)
+	}
+
+	return updated, nil
+}
+
+func (r *postRepository) Delete(ctx context.Context, id int64, userID int64) error {
+	query := "DELETE FROM posts WHERE id = $1 AND user_id = $2"
+	result, err := r.db.ExecContext(ctx, query, id, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete post: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("post not found or access denied")
+	}
+
+	return nil
+}

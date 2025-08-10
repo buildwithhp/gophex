@@ -52,11 +52,12 @@ func (g *generatorAdapter) Generate(ctx context.Context, proj *project.Project) 
 		}
 	}
 
-	// Call the existing generator
-	return g.generator.GenerateWithFullConfig(
+	// Call the existing generator with framework support
+	return g.generator.GenerateWithFramework(
 		string(proj.Type),
 		proj.Name,
 		proj.Path,
+		string(proj.Framework),
 		dbConfig,
 		redisConfig,
 	)

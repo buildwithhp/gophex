@@ -76,10 +76,14 @@ func browseForProject() error {
 		fmt.Println()
 
 		// Ask if user wants to create a new project
-		var createNew bool
-		createPrompt := &survey.Confirm{
-			Message: "Would you like to create a new project?",
-			Default: true,
+		var createNew string
+		createPrompt := &survey.Select{
+			Message: "No Gophex project found in this directory. What would you like to do?",
+			Options: []string{
+				"Create a new project",
+				"Return to main menu",
+				"Quit",
+			},
 		}
 
 		err := survey.AskOne(createPrompt, &createNew)
@@ -90,7 +94,11 @@ func browseForProject() error {
 			return fmt.Errorf("create project prompt failed: %w", err)
 		}
 
-		if createNew {
+		if createNew == "Quit" {
+			return nil
+		}
+
+		if createNew[:6] == "Create" {
 			return GenerateProject()
 		}
 

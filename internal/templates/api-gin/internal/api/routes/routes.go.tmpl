@@ -1,0 +1,120 @@
+package routes
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"{{.ModuleName}}/internal/api/handlers"
+	"{{.ModuleName}}/internal/api/middleware"
+	"{{.ModuleName}}/internal/config"
+	"{{.ModuleName}}/internal/database"
+	"{{.ModuleName}}/internal/domain/post"
+	"{{.ModuleName}}/internal/domain/user"
+	"{{.ModuleName}}/internal/infrastructure/auth"
+	"{{.ModuleName}}/internal/infrastructure/database/postgres"{{if .RedisConfig.Enabled}}
+	"{{.ModuleName}}/internal/infrastructure/database/redis"{{end}}
+	"{{.ModuleName}}/internal/pkg/logger"
+	"{{.ModuleName}}/internal/pkg/validator"
+)
+
+{{if .RedisConfig.Enabled}}func SetupGin(db database.Database, redisClient *redis.Client, logger logger.Logger, cfg *config.Config) *gin.Engine {
+{{else}}func SetupGin(db database.Database, logger logger.Logger, cfg *config.Config) *gin.Engine {
+{{end}}
+	// Initialize repositories
+{{if eq .DatabaseConfig.Type "mongodb"}}
+	userRepo := postgres.NewUserRepository(db.GetCollection("users"))
+	postRepo := postgres.NewPostRepository(db.GetCollection("posts"))
+{{else}}
+	userRepo := postgres.NewUserRepository(db.GetDB())
+	postRepo := postgres.NewPostRepository(db.GetDB())
+{{end}}
+
+	// Initialize services
+	jwtService := auth.NewJWTService(cfg.JWT.Secret, cfg.JWT.ExpirationHours)
+	userService := user.NewService(userRepo, jwtService)
+	postService := post.NewService(postRepo)
+
+	// Initialize validator
+	validator := validator.New()
+
+	// Initialize handlers
+	healthHandler := handlers.NewHealthHandler()
+	authHandler := handlers.NewAuthHandler(userService, validator)
+	userHandler := handlers.NewUserHandler(userService, validator)
+	postHandler := handlers.NewPostHandler(postService, validator)
+
+	// Initialize middleware
+	corsMiddleware := middleware.NewCORSMiddleware(
+		cfg.CORS.AllowedOrigins,
+		cfg.CORS.AllowedMethods,
+		cfg.CORS.AllowedHeaders,
+	)
+	loggingMiddleware := middleware.NewLoggingMiddleware(logger)
+	rateLimitMiddleware := middleware.NewRateLimitMiddleware(
+		cfg.RateLimit.RequestsPerMinute,
+		time.Minute,
+	)
+	authMiddleware := middleware.NewAuthMiddleware(jwtService)
+
+	// Create Gin router
+	r := gin.New()
+
+	// Apply global middleware
+	r.Use(gin.Recovery())
+	
+	// Convert standard HTTP middleware to Gin middleware
+	r.Use(func(c *gin.Context) {
+		corsMiddleware.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.Next()
+		})).ServeHTTP(c.Writer, c.Request)
+	})
+	
+	r.Use(func(c *gin.Context) {
+		loggingMiddleware.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.Next()
+		})).ServeHTTP(c.Writer, c.Request)
+	})
+	
+	r.Use(func(c *gin.Context) {
+		rateLimitMiddleware.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.Next()
+		})).ServeHTTP(c.Writer, c.Request)
+	})
+
+	// API routes
+	api := r.Group("/api/v1")
+
+	// Public routes
+	api.GET("/health", gin.WrapF(healthHandler.Health))
+	
+	// Auth routes
+	auth := api.Group("/auth")
+	auth.POST("/login", gin.WrapF(authHandler.Login))
+	auth.POST("/register", gin.WrapF(authHandler.Register))
+
+	// Public post routes (read-only)
+	api.GET("/posts", gin.WrapF(postHandler.GetPosts))
+	api.GET("/posts/:id", gin.WrapF(postHandler.GetPost))
+
+	// Protected routes
+	protected := api.Group("")
+	protected.Use(func(c *gin.Context) {
+		authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.Next()
+		})).ServeHTTP(c.Writer, c.Request)
+	})
+
+	// User routes (protected)
+	protected.GET("/users", gin.WrapF(userHandler.GetUsers))
+	protected.GET("/users/:id", gin.WrapF(userHandler.GetUser))
+	protected.PUT("/users/:id", gin.WrapF(userHandler.UpdateUser))
+	protected.DELETE("/users/:id", gin.WrapF(userHandler.DeleteUser))
+
+	// Post routes (protected)
+	protected.POST("/posts", gin.WrapF(postHandler.CreatePost))
+	protected.PUT("/posts/:id", gin.WrapF(postHandler.UpdatePost))
+	protected.DELETE("/posts/:id", gin.WrapF(postHandler.DeletePost))
+
+	return r
+}

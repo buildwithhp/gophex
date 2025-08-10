@@ -8,6 +8,7 @@ import (
 type Project struct {
 	Name           string
 	Type           ProjectType
+	Framework      FrameworkType // Framework for API projects (gin, echo, gorilla)
 	Path           string
 	ModuleName     string
 	GeneratedAt    time.Time
@@ -68,6 +69,30 @@ const (
 	DatabaseTypePostgreSQL DatabaseType = "postgresql"
 	DatabaseTypeMongoDB    DatabaseType = "mongodb"
 )
+
+// FrameworkType represents the web framework type for API projects
+type FrameworkType string
+
+const (
+	FrameworkTypeGin     FrameworkType = "gin"
+	FrameworkTypeEcho    FrameworkType = "echo"
+	FrameworkTypeGorilla FrameworkType = "gorilla"
+)
+
+// IsValid checks if the framework type is valid
+func (ft FrameworkType) IsValid() bool {
+	switch ft {
+	case FrameworkTypeGin, FrameworkTypeEcho, FrameworkTypeGorilla:
+		return true
+	default:
+		return false
+	}
+}
+
+// String returns the string representation of the framework type
+func (ft FrameworkType) String() string {
+	return string(ft)
+}
 
 // DatabaseConfigType represents the database configuration type
 type DatabaseConfigType string

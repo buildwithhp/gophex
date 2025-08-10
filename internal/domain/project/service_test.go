@@ -8,15 +8,9 @@ import (
 
 // MockRepository implements the Repository interface for testing
 type MockRepository struct {
-	projects   map[string]*Project
-	activities map[string]map[string]Activity
-}
-
-func NewMockRepository() *MockRepository {
-	return &MockRepository{
-		projects:   make(map[string]*Project),
-		activities: make(map[string]map[string]Activity),
-	}
+	projects     map[string]*Project
+	activities   map[string]map[string]Activity
+	existsResult bool // For controlling Exists method behavior in tests
 }
 
 func (m *MockRepository) Save(ctx context.Context, project *Project) error {
@@ -40,6 +34,73 @@ func (m *MockRepository) FindByName(ctx context.Context, name string) (*Project,
 	return nil, ErrProjectNotFound
 }
 
+func TestService_CreateProject_FrameworkValidation(t *testing.T) {
+	// Setup
+	repo := NewMockRepository()
+	metadataRepo := NewMockMetadataRepository()
+	generator := NewMockGenerator()
+	logger := NewMockLogger()
+
+	service := NewService(repo, metadataRepo, generator, logger)
+
+	// Test case 1: API project without framework should fail
+	req := CreateProjectRequest{
+		Name: "test-api",
+		Type: ProjectTypeAPI,
+		Path: "/tmp/test-api",
+		// Framework is empty - should fail for API projects
+	}
+
+	ctx := context.Background()
+	project, err := service.CreateProject(ctx, req)
+
+	if err == nil {
+		t.Fatal("Expected validation error for API project without framework")
+	}
+
+	if project != nil {
+		t.Error("Expected no project to be created")
+	}
+
+	var validationErr ValidationError
+	if !isValidationError(err, &validationErr) {
+		t.Errorf("Expected ValidationError, got %T", err)
+	}
+
+	// Test case 2: API project with valid framework should succeed
+	req.Framework = FrameworkTypeGin
+	repo.existsResult = false // Project doesn't exist
+
+	project, err = service.CreateProject(ctx, req)
+
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	if project == nil {
+		t.Fatal("Expected project to be created")
+	}
+
+	if project.Framework != FrameworkTypeGin {
+		t.Errorf("Expected framework to be %s, got %s", FrameworkTypeGin, project.Framework)
+	}
+
+	// Test case 3: Non-API project with framework should succeed (framework is ignored)
+	req.Type = ProjectTypeCLI
+	req.Framework = FrameworkTypeEcho // Should be ignored for CLI projects
+
+	project, err = service.CreateProject(ctx, req)
+
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	if project == nil {
+		t.Fatal("Expected project to be created")
+	}
+	return nil, ErrProjectNotFound
+}
+
 func (m *MockRepository) List(ctx context.Context) ([]*Project, error) {
 	var projects []*Project
 	for _, project := range m.projects {
@@ -54,8 +115,7 @@ func (m *MockRepository) Delete(ctx context.Context, path string) error {
 }
 
 func (m *MockRepository) Exists(ctx context.Context, path string) (bool, error) {
-	_, exists := m.projects[path]
-	return exists, nil
+	return m.existsResult, nil
 }
 
 func (m *MockRepository) UpdateActivity(ctx context.Context, projectPath, activityName string, completed bool) error {

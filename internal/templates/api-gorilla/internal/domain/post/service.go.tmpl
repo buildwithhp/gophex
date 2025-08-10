@@ -1,0 +1,43 @@
+package post
+
+import (
+	"context"
+)
+
+type Service interface {
+	Create(ctx context.Context, post *Post) (*Post, error)
+	GetByID(ctx context.Context, id int64) (*Post, error)
+	GetAll(ctx context.Context, page, limit int, userID int64) ([]*Post, int64, error)
+	Update(ctx context.Context, id int64, userID int64, post *Post) (*Post, error)
+	Delete(ctx context.Context, id int64, userID int64) error
+}
+
+type service struct {
+	repo Repository
+}
+
+func NewService(repo Repository) Service {
+	return &service{
+		repo: repo,
+	}
+}
+
+func (s *service) Create(ctx context.Context, post *Post) (*Post, error) {
+	return s.repo.Create(ctx, post)
+}
+
+func (s *service) GetByID(ctx context.Context, id int64) (*Post, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
+func (s *service) GetAll(ctx context.Context, page, limit int, userID int64) ([]*Post, int64, error) {
+	return s.repo.GetAll(ctx, page, limit, userID)
+}
+
+func (s *service) Update(ctx context.Context, id int64, userID int64, post *Post) (*Post, error) {
+	return s.repo.Update(ctx, id, userID, post)
+}
+
+func (s *service) Delete(ctx context.Context, id int64, userID int64) error {
+	return s.repo.Delete(ctx, id, userID)
+}

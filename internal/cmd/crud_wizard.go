@@ -144,11 +144,15 @@ func defineFields(entity *CRUDEntity) error {
 		}
 		fmt.Println()
 
-		var useCommon bool
-		commonPrompt := &survey.Confirm{
+		var useCommon string
+		commonPrompt := &survey.Select{
 			Message: "Would you like to use these common fields?",
-			Default: true,
-			Help:    "You can modify or add more fields in the next step",
+			Options: []string{
+				"Yes - Use these common fields",
+				"No - Start with empty fields",
+				"Quit",
+			},
+			Help: "You can modify or add more fields in the next step",
 		}
 
 		if err := survey.AskOne(commonPrompt, &useCommon); err != nil {
@@ -158,20 +162,28 @@ func defineFields(entity *CRUDEntity) error {
 			return fmt.Errorf("common fields prompt failed: %w", err)
 		}
 
-		if !useCommon {
+		if useCommon == "Quit" {
+			return nil
+		}
+
+		if useCommon[:2] == "No" {
 			entity.Fields = []CRUDField{}
 		}
 	}
 
 	// Interactive field addition
 	for {
-		var addMore bool
+		var addMore string
 		if len(entity.Fields) == 0 {
-			addMore = true
+			addMore = "Yes"
 		} else {
-			addPrompt := &survey.Confirm{
+			addPrompt := &survey.Select{
 				Message: "Would you like to add more fields?",
-				Default: false,
+				Options: []string{
+					"Yes - Add another field",
+					"No - Continue with current fields",
+					"Quit",
+				},
 			}
 
 			if err := survey.AskOne(addPrompt, &addMore); err != nil {
@@ -180,9 +192,13 @@ func defineFields(entity *CRUDEntity) error {
 				}
 				return fmt.Errorf("add field prompt failed: %w", err)
 			}
+
+			if addMore == "Quit" {
+				return nil
+			}
 		}
 
-		if !addMore {
+		if addMore[:2] == "No" {
 			break
 		}
 
@@ -314,10 +330,14 @@ func previewAndConfirm(entity *CRUDEntity) error {
 	fmt.Printf("  migrations/                       - Database migration files\n")
 	fmt.Printf("  README_%s.md                      - Documentation and examples\n\n", entity.Name)
 
-	var confirm bool
-	confirmPrompt := &survey.Confirm{
+	var confirm string
+	confirmPrompt := &survey.Select{
 		Message: "Generate these CRUD operations?",
-		Default: true,
+		Options: []string{
+			"Yes - Generate CRUD operations",
+			"No - Cancel generation",
+			"Quit",
+		},
 	}
 
 	if err := survey.AskOne(confirmPrompt, &confirm); err != nil {
@@ -327,7 +347,11 @@ func previewAndConfirm(entity *CRUDEntity) error {
 		return fmt.Errorf("confirmation prompt failed: %w", err)
 	}
 
-	if !confirm {
+	if confirm == "Quit" {
+		return nil
+	}
+
+	if confirm[:2] == "No" {
 		fmt.Println("❌ CRUD generation cancelled")
 		return ErrReturnToMenu
 	}
@@ -377,23 +401,45 @@ func defineField() (CRUDField, error) {
 	field.Type = strings.Split(selectedType, " - ")[0]
 
 	// Field properties
-	requiredPrompt := &survey.Confirm{
+	var requiredChoice string
+	requiredPrompt := &survey.Select{
 		Message: "Is this field required?",
-		Default: false,
+		Options: []string{
+			"No - Optional field",
+			"Yes - Required field",
+			"Quit",
+		},
 	}
 
-	if err := survey.AskOne(requiredPrompt, &field.Required); err != nil {
+	if err := survey.AskOne(requiredPrompt, &requiredChoice); err != nil {
 		return field, fmt.Errorf("required prompt failed: %w", err)
 	}
 
-	uniquePrompt := &survey.Confirm{
-		Message: "Should this field be unique?",
-		Default: false,
+	if requiredChoice == "Quit" {
+		return field, fmt.Errorf("user quit")
 	}
 
-	if err := survey.AskOne(uniquePrompt, &field.Unique); err != nil {
+	field.Required = requiredChoice[:3] == "Yes"
+
+	var uniqueChoice string
+	uniquePrompt := &survey.Select{
+		Message: "Should this field be unique?",
+		Options: []string{
+			"No - Allow duplicates",
+			"Yes - Must be unique",
+			"Quit",
+		},
+	}
+
+	if err := survey.AskOne(uniquePrompt, &uniqueChoice); err != nil {
 		return field, fmt.Errorf("unique prompt failed: %w", err)
 	}
+
+	if uniqueChoice == "Quit" {
+		return field, fmt.Errorf("user quit")
+	}
+
+	field.Unique = uniqueChoice[:3] == "Yes"
 
 	// Generate tags
 	field.JSONTag = strings.ToLower(field.Name)

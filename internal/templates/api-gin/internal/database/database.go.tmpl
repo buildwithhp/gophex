@@ -1,0 +1,361 @@
+package database
+
+import (
+	"context"
+	"fmt"
+	"os"
+{{if or (and (eq .DatabaseConfig.Type "mongodb") (eq .DatabaseConfig.ConfigType "cluster")) (and (ne .DatabaseConfig.Type "mongodb") (eq .DatabaseConfig.ConfigType "cluster"))}}
+	"strings"
+{{end}}
+	"time"
+
+{{if eq .DatabaseConfig.Type "postgresql"}}
+	"database/sql"
+	_ "github.com/lib/pq"
+{{else if eq .DatabaseConfig.Type "mysql"}}
+	"database/sql"
+	_ "github.com/go-sql-driver/mysql"
+{{else if eq .DatabaseConfig.Type "mongodb"}}
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+{{else}}
+	"database/sql"
+	_ "github.com/lib/pq"
+{{end}}
+
+	"{{.ModuleName}}/internal/pkg/logger"
+)
+
+// getEnvWithDefault returns the value of an environment variable or a default value if not set
+func getEnvWithDefault(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
+}
+
+// Database interface defines the contract for database operations
+type Database interface {
+	Connect(ctx context.Context) error
+	Close() error
+	Health(ctx context.Context) error
+{{if eq .DatabaseConfig.Type "mongodb"}}
+	GetCollection(name string) *mongo.Collection
+	GetDatabase() *mongo.Database
+{{else}}
+	GetDB() *sql.DB
+	GetReadDB() *sql.DB
+	GetWriteDB() *sql.DB
+{{end}}
+}
+
+{{if eq .DatabaseConfig.Type "mongodb"}}
+// MongoDatabase implements Database interface for MongoDB
+type MongoDatabase struct {
+	client   *mongo.Client
+	database *mongo.Database
+	config   *Config
+	logger   logger.Logger
+}
+
+func NewMongoDatabase(config *Config, logger logger.Logger) *MongoDatabase {
+	return &MongoDatabase{
+		config: config,
+		logger: logger,
+	}
+}
+
+func (m *MongoDatabase) Connect(ctx context.Context) error {
+	var uri string
+	
+{{if eq .DatabaseConfig.ConfigType "single"}}
+	uri := getEnvWithDefault("DATABASE_URL", "")
+	if uri == "" {
+		uri = fmt.Sprintf("mongodb://%s:%s@%s:%s/%s",
+			m.config.Username, m.config.Password, m.config.Host, m.config.Port, m.config.DatabaseName)
+		if m.config.AuthSource != "" {
+			uri += "?authSource=" + m.config.AuthSource
+		}
+	}
+{{else if eq .DatabaseConfig.ConfigType "read-write"}}
+	// For MongoDB read-write, we'll use the write URL as primary
+	uri := getEnvWithDefault("DATABASE_WRITE_URL", "")
+	if uri == "" {
+		uri = fmt.Sprintf("mongodb://%s:%s@%s:%s/%s",
+			m.config.Username, m.config.Password, m.config.WriteHost, m.config.Port, m.config.DatabaseName)
+		if m.config.AuthSource != "" {
+			uri += "?authSource=" + m.config.AuthSource
+		}
+	}
+{{else if eq .DatabaseConfig.ConfigType "cluster"}}
+	uri := getEnvWithDefault("DATABASE_URL", "")
+	if uri == "" {
+		hosts := strings.Join(m.config.ClusterNodes, ":"+m.config.Port+",") + ":" + m.config.Port
+		uri = fmt.Sprintf("mongodb://%s:%s@%s/%s",
+			m.config.Username, m.config.Password, hosts, m.config.DatabaseName)
+		params := []string{}
+		if m.config.ReplicaSet != "" {
+			params = append(params, "replicaSet="+m.config.ReplicaSet)
+		}
+		if m.config.AuthSource != "" {
+			params = append(params, "authSource="+m.config.AuthSource)
+		}
+		if len(params) > 0 {
+			uri += "?" + strings.Join(params, "&")
+		}
+	}
+{{end}}
+
+	clientOptions := options.Client().ApplyURI(uri)
+	clientOptions.SetMaxPoolSize(100)
+	clientOptions.SetMaxConnIdleTime(30 * time.Minute)
+
+	client, err := mongo.Connect(ctx, clientOptions)
+	if err != nil {
+		return fmt.Errorf("failed to connect to MongoDB: %w", err)
+	}
+
+	// Ping the database
+	if err := client.Ping(ctx, nil); err != nil {
+		return fmt.Errorf("failed to ping MongoDB: %w", err)
+	}
+
+	m.client = client
+	m.database = client.Database(m.config.DatabaseName)
+
+	m.logger.Info("Connected to MongoDB successfully")
+	return nil
+}
+
+func (m *MongoDatabase) Close() error {
+	if m.client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return m.client.Disconnect(ctx)
+	}
+	return nil
+}
+
+func (m *MongoDatabase) Health(ctx context.Context) error {
+	if m.client == nil {
+		return fmt.Errorf("database not connected")
+	}
+	return m.client.Ping(ctx, nil)
+}
+
+func (m *MongoDatabase) GetCollection(name string) *mongo.Collection {
+	return m.database.Collection(name)
+}
+
+func (m *MongoDatabase) GetDatabase() *mongo.Database {
+	return m.database
+}
+
+{{else}}
+// SQLDatabase implements Database interface for SQL databases (PostgreSQL/MySQL)
+type SQLDatabase struct {
+	writeDB *sql.DB
+	readDB  *sql.DB
+	config  *Config
+	logger  logger.Logger
+}
+
+func NewSQLDatabase(config *Config, logger logger.Logger) *SQLDatabase {
+	return &SQLDatabase{
+		config: config,
+		logger: logger,
+	}
+}
+
+func (s *SQLDatabase) Connect(ctx context.Context) error {
+{{if eq .DatabaseConfig.ConfigType "single"}}
+	// Single database connection
+	dbURL := getEnvWithDefault("DATABASE_URL", "")
+	if dbURL == "" {
+{{if eq .DatabaseConfig.Type "postgresql"}}
+		dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			s.config.Username, s.config.Password, s.config.Host, s.config.Port, s.config.DatabaseName, s.config.SSLMode)
+{{else if eq .DatabaseConfig.Type "mysql"}}
+		dbURL = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?tls=%s",
+			s.config.Username, s.config.Password, s.config.Host, s.config.Port, s.config.DatabaseName, s.config.SSLMode)
+{{end}}
+	}
+
+{{if eq .DatabaseConfig.Type "postgresql"}}
+	db, err := sql.Open("postgres", dbURL)
+{{else if eq .DatabaseConfig.Type "mysql"}}
+	db, err := sql.Open("mysql", dbURL)
+{{end}}
+	if err != nil {
+		return fmt.Errorf("failed to open database connection: %w", err)
+	}
+
+	// Configure connection pool
+	db.SetMaxOpenConns(100)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(time.Hour)
+
+	// Test the connection
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	s.writeDB = db
+	s.readDB = db // Same connection for single instance
+
+{{else if eq .DatabaseConfig.ConfigType "read-write"}}
+	// Write database connection
+	writeURL := getEnvWithDefault("DATABASE_WRITE_URL", "")
+	if writeURL == "" {
+{{if eq .DatabaseConfig.Type "postgresql"}}
+		writeURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			s.config.Username, s.config.Password, s.config.WriteHost, s.config.Port, s.config.DatabaseName, s.config.SSLMode)
+{{else if eq .DatabaseConfig.Type "mysql"}}
+		writeURL = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?tls=%s",
+			s.config.Username, s.config.Password, s.config.WriteHost, s.config.Port, s.config.DatabaseName, s.config.SSLMode)
+{{end}}
+	}
+
+{{if eq .DatabaseConfig.Type "postgresql"}}
+	writeDB, err := sql.Open("postgres", writeURL)
+{{else if eq .DatabaseConfig.Type "mysql"}}
+	writeDB, err := sql.Open("mysql", writeURL)
+{{end}}
+	if err != nil {
+		return fmt.Errorf("failed to open write database connection: %w", err)
+	}
+
+	// Read database connection
+	readURL := getEnvWithDefault("DATABASE_READ_URL", "")
+	if readURL == "" {
+{{if eq .DatabaseConfig.Type "postgresql"}}
+		readURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			s.config.Username, s.config.Password, s.config.ReadHost, s.config.Port, s.config.DatabaseName, s.config.SSLMode)
+{{else if eq .DatabaseConfig.Type "mysql"}}
+		readURL = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?tls=%s",
+			s.config.Username, s.config.Password, s.config.ReadHost, s.config.Port, s.config.DatabaseName, s.config.SSLMode)
+{{end}}
+	}
+
+{{if eq .DatabaseConfig.Type "postgresql"}}
+	readDB, err := sql.Open("postgres", readURL)
+{{else if eq .DatabaseConfig.Type "mysql"}}
+	readDB, err := sql.Open("mysql", readURL)
+{{end}}
+	if err != nil {
+		writeDB.Close()
+		return fmt.Errorf("failed to open read database connection: %w", err)
+	}
+
+	// Configure connection pools
+	writeDB.SetMaxOpenConns(50)
+	writeDB.SetMaxIdleConns(5)
+	writeDB.SetConnMaxLifetime(time.Hour)
+
+	readDB.SetMaxOpenConns(100)
+	readDB.SetMaxIdleConns(10)
+	readDB.SetConnMaxLifetime(time.Hour)
+
+	// Test connections
+	if err := writeDB.PingContext(ctx); err != nil {
+		writeDB.Close()
+		readDB.Close()
+		return fmt.Errorf("failed to ping write database: %w", err)
+	}
+
+	if err := readDB.PingContext(ctx); err != nil {
+		writeDB.Close()
+		readDB.Close()
+		return fmt.Errorf("failed to ping read database: %w", err)
+	}
+
+	s.writeDB = writeDB
+	s.readDB = readDB
+
+{{else if eq .DatabaseConfig.ConfigType "cluster"}}
+	// For cluster setup, we'll use the first node as primary and implement load balancing later
+	clusterURLs := getEnvWithDefault("DATABASE_CLUSTER_URLS", "")
+	var dbURL string
+	
+	if clusterURLs != "" {
+		urls := strings.Split(clusterURLs, ",")
+		dbURL = urls[0] // Use first URL for now
+	} else {
+		// Use first cluster node
+{{if eq .DatabaseConfig.Type "postgresql"}}
+		dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			s.config.Username, s.config.Password, s.config.ClusterNodes[0], s.config.Port, s.config.DatabaseName, s.config.SSLMode)
+{{else if eq .DatabaseConfig.Type "mysql"}}
+		dbURL = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?tls=%s",
+			s.config.Username, s.config.Password, s.config.ClusterNodes[0], s.config.Port, s.config.DatabaseName, s.config.SSLMode)
+{{end}}
+	}
+
+{{if eq .DatabaseConfig.Type "postgresql"}}
+	db, err := sql.Open("postgres", dbURL)
+{{else if eq .DatabaseConfig.Type "mysql"}}
+	db, err := sql.Open("mysql", dbURL)
+{{end}}
+	if err != nil {
+		return fmt.Errorf("failed to open cluster database connection: %w", err)
+	}
+
+	// Configure connection pool
+	db.SetMaxOpenConns(100)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(time.Hour)
+
+	// Test the connection
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("failed to ping cluster database: %w", err)
+	}
+
+	s.writeDB = db
+	s.readDB = db // Same connection for cluster (can be enhanced later)
+{{end}}
+
+	s.logger.Info("Connected to {{.DatabaseConfig.Type}} database successfully")
+	return nil
+}
+
+func (s *SQLDatabase) Close() error {
+	var err error
+	if s.writeDB != nil {
+		if closeErr := s.writeDB.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}
+	if s.readDB != nil && s.readDB != s.writeDB {
+		if closeErr := s.readDB.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}
+	return err
+}
+
+func (s *SQLDatabase) Health(ctx context.Context) error {
+	if s.writeDB != nil {
+		if err := s.writeDB.PingContext(ctx); err != nil {
+			return fmt.Errorf("write database health check failed: %w", err)
+		}
+	}
+	if s.readDB != nil && s.readDB != s.writeDB {
+		if err := s.readDB.PingContext(ctx); err != nil {
+			return fmt.Errorf("read database health check failed: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *SQLDatabase) GetDB() *sql.DB {
+	return s.writeDB
+}
+
+func (s *SQLDatabase) GetReadDB() *sql.DB {
+	return s.readDB
+}
+
+func (s *SQLDatabase) GetWriteDB() *sql.DB {
+	return s.writeDB
+}
+{{end}}

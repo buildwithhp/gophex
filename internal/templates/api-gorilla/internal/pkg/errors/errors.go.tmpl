@@ -1,0 +1,44 @@
+package errors
+
+import "errors"
+
+// Common application errors
+var (
+	ErrNotFound           = errors.New("resource not found")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrUnauthorized       = errors.New("unauthorized")
+	ErrForbidden          = errors.New("forbidden")
+	ErrConflict           = errors.New("resource already exists")
+	ErrBadRequest         = errors.New("bad request")
+	ErrInternalServer     = errors.New("internal server error")
+	ErrValidation         = errors.New("validation error")
+)
+
+// Custom error types
+type ValidationError struct {
+	Field   string
+	Message string
+}
+
+func (e ValidationError) Error() string {
+	return e.Message
+}
+
+type NotFoundError struct {
+	Resource string
+	ID       interface{}
+}
+
+func (e NotFoundError) Error() string {
+	return "resource not found"
+}
+
+type ConflictError struct {
+	Resource string
+	Field    string
+	Value    interface{}
+}
+
+func (e ConflictError) Error() string {
+	return "resource already exists"
+}

@@ -139,6 +139,15 @@ func ShowPostGenerationMenu(opts PostGenerationOptions) error {
 			} else {
 				tracker.UpdateActivity("crud_generated", true)
 			}
+		case choice[:4] == "🎓":
+			if err := RunEnhancedCRUDWizard(opts.ProjectPath); err != nil {
+				if err == ErrReturnToMenu {
+					continue // Return to menu
+				}
+				fmt.Printf("❌ Enhanced CRUD generation failed: %v\n", err)
+			} else {
+				tracker.UpdateActivity("enhanced_crud_generated", true)
+			}
 		case choice[:4] == "🆕":
 			// Generate another project
 			return GenerateProject()
@@ -147,10 +156,13 @@ func ShowPostGenerationMenu(opts PostGenerationOptions) error {
 		}
 
 		// Ask if user wants to continue or exit
-		var continueMenu bool
-		continuePrompt := &survey.Confirm{
-			Message: "Return to menu?",
-			Default: true,
+		var continueMenu string
+		continuePrompt := &survey.Select{
+			Message: "What would you like to do next?",
+			Options: []string{
+				"Return to menu",
+				"Exit Gophex",
+			},
 		}
 
 		err = survey.AskOne(continuePrompt, &continueMenu)
@@ -163,7 +175,7 @@ func ShowPostGenerationMenu(opts PostGenerationOptions) error {
 			return fmt.Errorf("continue prompt failed: %w", err)
 		}
 
-		if !continueMenu {
+		if continueMenu[:4] == "Exit" {
 			fmt.Println("👋 Thank you for using Gophex!")
 			return nil
 		}
@@ -215,6 +227,10 @@ func buildMenuOptions(tracker *ProjectTracker) []string {
 		if projectMetadata, err := utils.LoadMetadata(projectPath); err == nil && projectMetadata.Project.Type == "api" {
 			prefix = utils.GetActivityPrefix(projectPath, "crud_generated")
 			options = append(options, fmt.Sprintf("🏗️  %sGenerate CRUD operations", prefix))
+
+			// Add enhanced CRUD wizard option
+			prefix = utils.GetActivityPrefix(projectPath, "enhanced_crud_generated")
+			options = append(options, fmt.Sprintf("🎓 %sEnhanced CRUD Wizard - Learn Clean Architecture", prefix))
 		}
 	} else {
 		// Fallback to old system
@@ -249,6 +265,10 @@ func buildMenuOptions(tracker *ProjectTracker) []string {
 		if trackerMetadata.Gophex.Project.Type == "api" {
 			prefix = tracker.GetActivityPrefix("crud_generated")
 			options = append(options, fmt.Sprintf("🏗️  %sGenerate CRUD operations", prefix))
+
+			// Add enhanced CRUD wizard option
+			prefix = tracker.GetActivityPrefix("enhanced_crud_generated")
+			options = append(options, fmt.Sprintf("🎓 %sEnhanced CRUD Wizard - Learn Clean Architecture", prefix))
 		}
 	}
 

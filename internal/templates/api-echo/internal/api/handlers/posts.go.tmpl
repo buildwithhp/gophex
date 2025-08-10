@@ -1,0 +1,229 @@
+package handlers
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"github.com/gorilla/mux"
+	"{{.ModuleName}}/internal/api/responses"
+	"{{.ModuleName}}/internal/domain/post"
+	"{{.ModuleName}}/internal/pkg/validator"
+)
+
+type PostHandler struct {
+	postService post.Service
+	validator   *validator.Validator
+}
+
+func NewPostHandler(postService post.Service, validator *validator.Validator) *PostHandler {
+	return &PostHandler{
+		postService: postService,
+		validator:   validator,
+	}
+}
+
+type CreatePostRequest struct {
+	Title   string `json:"title" validate:"required,min=1,max=200"`
+	Content string `json:"content" validate:"required,min=1"`
+}
+
+type UpdatePostRequest struct {
+	Title   string `json:"title" validate:"omitempty,min=1,max=200"`
+	Content string `json:"content" validate:"omitempty,min=1"`
+}
+
+// GetPosts godoc
+// @Summary Get all posts
+// @Description Get a list of all posts with pagination
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Items per page" default(10)
+// @Param user_id query int false "Filter by user ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 500 {object} responses.ErrorResponse
+// @Router /posts [get]
+func (h *PostHandler) GetPosts(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	userID, _ := strconv.ParseInt(r.URL.Query().Get("user_id"), 10, 64)
+
+	posts, total, err := h.postService.GetAll(r.Context(), page, limit, userID)
+	if err != nil {
+		responses.Error(w, http.StatusInternalServerError, "Failed to fetch posts", err)
+		return
+	}
+
+	responses.Success(w, http.StatusOK, "Posts retrieved successfully", map[string]interface{}{
+		"posts": posts,
+		"pagination": map[string]interface{}{
+			"page":  page,
+			"limit": limit,
+			"total": total,
+		},
+	})
+}
+
+// GetPost godoc
+// @Summary Get post by ID
+// @Description Get a specific post by its ID
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Param id path int true "Post ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 404 {object} responses.ErrorResponse
+// @Router /posts/{id} [get]
+func (h *PostHandler) GetPost(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		responses.Error(w, http.StatusBadRequest, "Invalid post ID", err)
+		return
+	}
+
+	post, err := h.postService.GetByID(r.Context(), id)
+	if err != nil {
+		responses.Error(w, http.StatusNotFound, "Post not found", err)
+		return
+	}
+
+	responses.Success(w, http.StatusOK, "Post retrieved successfully", map[string]interface{}{
+		"post": post,
+	})
+}
+
+// CreatePost godoc
+// @Summary Create new post
+// @Description Create a new post
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Param request body CreatePostRequest true "Create post request"
+// @Success 201 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Security BearerAuth
+// @Router /posts [post]
+func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
+	var req CreatePostRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		responses.Error(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		responses.ValidationError(w, err)
+		return
+	}
+
+	// Get user ID from JWT token (set by auth middleware)
+	userID := r.Context().Value("user_id").(int64)
+
+	postModel := &post.Post{
+		Title:   req.Title,
+		Content: req.Content,
+		UserID:  userID,
+	}
+
+	createdPost, err := h.postService.Create(r.Context(), postModel)
+	if err != nil {
+		responses.Error(w, http.StatusInternalServerError, "Failed to create post", err)
+		return
+	}
+
+	responses.Success(w, http.StatusCreated, "Post created successfully", map[string]interface{}{
+		"post": createdPost,
+	})
+}
+
+// UpdatePost godoc
+// @Summary Update post
+// @Description Update post information
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Param id path int true "Post ID"
+// @Param request body UpdatePostRequest true "Update post request"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 404 {object} responses.ErrorResponse
+// @Security BearerAuth
+// @Router /posts/{id} [put]
+func (h *PostHandler) UpdatePost(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		responses.Error(w, http.StatusBadRequest, "Invalid post ID", err)
+		return
+	}
+
+	var req UpdatePostRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		responses.Error(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		responses.ValidationError(w, err)
+		return
+	}
+
+	// Get user ID from JWT token (set by auth middleware)
+	userID := r.Context().Value("user_id").(int64)
+
+	updatedPost, err := h.postService.Update(r.Context(), id, userID, &post.Post{
+		Title:   req.Title,
+		Content: req.Content,
+	})
+	if err != nil {
+		responses.Error(w, http.StatusNotFound, "Failed to update post", err)
+		return
+	}
+
+	responses.Success(w, http.StatusOK, "Post updated successfully", map[string]interface{}{
+		"post": updatedPost,
+	})
+}
+
+// DeletePost godoc
+// @Summary Delete post
+// @Description Delete a post by ID
+// @Tags posts
+// @Accept json
+// @Produce json
+// @Param id path int true "Post ID"
+// @Success 200 {object} responses.SuccessResponse
+// @Failure 400 {object} responses.ErrorResponse
+// @Failure 404 {object} responses.ErrorResponse
+// @Security BearerAuth
+// @Router /posts/{id} [delete]
+func (h *PostHandler) DeletePost(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		responses.Error(w, http.StatusBadRequest, "Invalid post ID", err)
+		return
+	}
+
+	// Get user ID from JWT token (set by auth middleware)
+	userID := r.Context().Value("user_id").(int64)
+
+	err = h.postService.Delete(r.Context(), id, userID)
+	if err != nil {
+		responses.Error(w, http.StatusNotFound, "Failed to delete post", err)
+		return
+	}
+
+	responses.Success(w, http.StatusOK, "Post deleted successfully", nil)
+}

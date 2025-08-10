@@ -423,18 +423,26 @@ func ensureGolangMigrateInstalled(dbType string) error {
 	fmt.Println("⚠️  golang-migrate tool is not installed")
 	fmt.Printf("   This tool is required for %s database migrations\n", dbType)
 
-	var installMigrate bool
-	installPrompt := &survey.Confirm{
+	var installMigrate string
+	installPrompt := &survey.Select{
 		Message: "Would you like Gophex to install golang-migrate for you?",
-		Default: true,
-		Help:    "This will install the golang-migrate tool using 'go install'",
+		Options: []string{
+			"Yes - Install golang-migrate tool",
+			"No - Skip installation",
+			"Quit",
+		},
+		Help: "This will install the golang-migrate tool using 'go install'",
 	}
 
 	if err := survey.AskOne(installPrompt, &installMigrate); err != nil {
 		return err
 	}
 
-	if !installMigrate {
+	if installMigrate == "Quit" {
+		return nil
+	}
+
+	if installMigrate[:2] == "No" {
 		fmt.Println("❌ Database migrations require golang-migrate tool")
 		fmt.Printf("   You can install it manually with: go install -tags '%s' github.com/golang-migrate/migrate/v4/cmd/migrate@latest\n", dbType)
 		return fmt.Errorf("golang-migrate tool is required but not installed")

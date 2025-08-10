@@ -233,13 +233,19 @@ gophex
 
 ### 🌐 REST API (Production-Ready)
 
-Generates a comprehensive REST API with clean architecture and database integration:
+Generates a comprehensive REST API with clean architecture, database integration, and your choice of web framework:
+
+#### 🚀 **Framework Options**
+- **Gin** - High-performance HTTP web framework with JSON validation
+- **Echo** - Minimalist web framework with middleware support  
+- **Gorilla** - Powerful toolkit with flexible routing and middleware
 
 ```bash
 gophex
 # Select: Generate a new project
 # Select: api - REST API with clean architecture
 # Enter project name: myapi
+# Choose framework: Gin/Echo/Gorilla
 # Choose database: PostgreSQL/MySQL/MongoDB
 # Configure database setup: Single/Read-Write/Cluster
 # Enter connection details
@@ -310,6 +316,26 @@ myapi/
 ├── go.mod                      # Go modules
 └── README.md                   # Project documentation
 ```
+
+#### 🎯 **Framework-Specific Features**
+
+**Gin Framework:**
+- High-performance HTTP routing with radix tree
+- Built-in JSON validation and binding
+- Middleware chaining with context passing
+- Automatic content negotiation
+
+**Echo Framework:**
+- Minimalist design with powerful middleware
+- Built-in request/response binding
+- Automatic TLS support
+- Extensible middleware system
+
+**Gorilla Framework:**
+- Flexible routing with URL patterns
+- Powerful middleware toolkit
+- WebSocket support ready
+- Session management capabilities
 
 **Features Included:**
 - ✅ **Universal Database Support** - PostgreSQL, MySQL, MongoDB with all configuration types

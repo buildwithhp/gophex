@@ -1,0 +1,98 @@
+package routes
+
+import (
+	"time"
+
+	"github.com/gorilla/mux"
+	"{{.ModuleName}}/internal/api/handlers"
+	"{{.ModuleName}}/internal/api/middleware"
+	"{{.ModuleName}}/internal/config"
+	"{{.ModuleName}}/internal/database"
+	"{{.ModuleName}}/internal/domain/post"
+	"{{.ModuleName}}/internal/domain/user"
+	"{{.ModuleName}}/internal/infrastructure/auth"
+	"{{.ModuleName}}/internal/infrastructure/database/postgres"{{if .RedisConfig.Enabled}}
+	"{{.ModuleName}}/internal/infrastructure/database/redis"{{end}}
+	"{{.ModuleName}}/internal/pkg/logger"
+	"{{.ModuleName}}/internal/pkg/validator"
+)
+
+{{if .RedisConfig.Enabled}}func SetupGorilla(db database.Database, redisClient *redis.Client, logger logger.Logger, cfg *config.Config) *mux.Router {
+{{else}}func SetupGorilla(db database.Database, logger logger.Logger, cfg *config.Config) *mux.Router {
+{{end}}
+	// Initialize repositories
+{{if eq .DatabaseConfig.Type "mongodb"}}
+	userRepo := postgres.NewUserRepository(db.GetCollection("users"))
+	postRepo := postgres.NewPostRepository(db.GetCollection("posts"))
+{{else}}
+	userRepo := postgres.NewUserRepository(db.GetDB())
+	postRepo := postgres.NewPostRepository(db.GetDB())
+{{end}}
+
+	// Initialize services
+	jwtService := auth.NewJWTService(cfg.JWT.Secret, cfg.JWT.ExpirationHours)
+	userService := user.NewService(userRepo, jwtService)
+	postService := post.NewService(postRepo)
+
+	// Initialize validator
+	validator := validator.New()
+
+	// Initialize handlers
+	healthHandler := handlers.NewHealthHandler()
+	authHandler := handlers.NewAuthHandler(userService, validator)
+	userHandler := handlers.NewUserHandler(userService, validator)
+	postHandler := handlers.NewPostHandler(postService, validator)
+
+	// Initialize middleware
+	corsMiddleware := middleware.NewCORSMiddleware(
+		cfg.CORS.AllowedOrigins,
+		cfg.CORS.AllowedMethods,
+		cfg.CORS.AllowedHeaders,
+	)
+	loggingMiddleware := middleware.NewLoggingMiddleware(logger)
+	rateLimitMiddleware := middleware.NewRateLimitMiddleware(
+		cfg.RateLimit.RequestsPerMinute,
+		time.Minute,
+	)
+	authMiddleware := middleware.NewAuthMiddleware(jwtService)
+
+	// Create router
+	r := mux.NewRouter()
+
+	// Apply global middleware
+	r.Use(corsMiddleware.Handler)
+	r.Use(loggingMiddleware.Handler)
+	r.Use(rateLimitMiddleware.Handler)
+
+	// API routes
+	api := r.PathPrefix("/api/v1").Subrouter()
+
+	// Public routes
+	api.HandleFunc("/health", healthHandler.Health).Methods("GET")
+	
+	// Auth routes
+	auth := api.PathPrefix("/auth").Subrouter()
+	auth.HandleFunc("/login", authHandler.Login).Methods("POST")
+	auth.HandleFunc("/register", authHandler.Register).Methods("POST")
+
+	// Public post routes (read-only)
+	api.HandleFunc("/posts", postHandler.GetPosts).Methods("GET")
+	api.HandleFunc("/posts/{id:[0-9]+}", postHandler.GetPost).Methods("GET")
+
+	// Protected routes
+	protected := api.PathPrefix("").Subrouter()
+	protected.Use(authMiddleware.RequireAuth)
+
+	// User routes (protected)
+	protected.HandleFunc("/users", userHandler.GetUsers).Methods("GET")
+	protected.HandleFunc("/users/{id:[0-9]+}", userHandler.GetUser).Methods("GET")
+	protected.HandleFunc("/users/{id:[0-9]+}", userHandler.UpdateUser).Methods("PUT")
+	protected.HandleFunc("/users/{id:[0-9]+}", userHandler.DeleteUser).Methods("DELETE")
+
+	// Post routes (protected)
+	protected.HandleFunc("/posts", postHandler.CreatePost).Methods("POST")
+	protected.HandleFunc("/posts/{id:[0-9]+}", postHandler.UpdatePost).Methods("PUT")
+	protected.HandleFunc("/posts/{id:[0-9]+}", postHandler.DeletePost).Methods("DELETE")
+
+	return r
+}

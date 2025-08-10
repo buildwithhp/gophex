@@ -1,0 +1,300 @@
+#!/bin/bash
+
+# Database migration script for {{.ProjectName}}
+# This script handles database migrations and initialization
+
+set -e
+
+# Configuration
+{{if eq .DatabaseConfig.Type "postgresql"}}
+DB_TYPE="postgresql"
+{{if eq .DatabaseConfig.ConfigType "single"}}
+DB_URL="${DATABASE_URL:-postgres://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}?sslmode={{.DatabaseConfig.SSLMode}}}"
+{{else if eq .DatabaseConfig.ConfigType "read-write"}}
+DB_URL="${DATABASE_WRITE_URL:-postgres://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.WriteHost}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}?sslmode={{.DatabaseConfig.SSLMode}}}"
+{{else if eq .DatabaseConfig.ConfigType "cluster"}}
+DB_URL="${DATABASE_CLUSTER_URLS%%,*}" # Use first URL from cluster
+{{end}}
+{{else if eq .DatabaseConfig.Type "mysql"}}
+DB_TYPE="mysql"
+{{if eq .DatabaseConfig.ConfigType "single"}}
+DB_URL="${DATABASE_URL:-{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@tcp({{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}})/{{.DatabaseConfig.DatabaseName}}?tls={{.DatabaseConfig.SSLMode}}}"
+{{else if eq .DatabaseConfig.ConfigType "read-write"}}
+DB_URL="${DATABASE_WRITE_URL:-{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@tcp({{.DatabaseConfig.WriteHost}}:{{.DatabaseConfig.Port}})/{{.DatabaseConfig.DatabaseName}}?tls={{.DatabaseConfig.SSLMode}}}"
+{{else if eq .DatabaseConfig.ConfigType "cluster"}}
+DB_URL="${DATABASE_CLUSTER_URLS%%,*}" # Use first URL from cluster
+{{end}}
+{{else if eq .DatabaseConfig.Type "mongodb"}}
+DB_TYPE="mongodb"
+{{if eq .DatabaseConfig.ConfigType "single"}}
+DB_URL="${DATABASE_URL:-mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.AuthSource}}?authSource={{.DatabaseConfig.AuthSource}}{{end}}}"
+{{else if eq .DatabaseConfig.ConfigType "read-write"}}
+DB_URL="${DATABASE_WRITE_URL:-mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.WriteHost}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.AuthSource}}?authSource={{.DatabaseConfig.AuthSource}}{{end}}}"
+{{else if eq .DatabaseConfig.ConfigType "cluster"}}
+DB_URL="${DATABASE_URL:-mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{range $index, $node := .DatabaseConfig.ClusterNodes}}{{if $index}},{{end}}{{$node}}:{{$.DatabaseConfig.Port}}{{end}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.ReplicaSet}}?replicaSet={{.DatabaseConfig.ReplicaSet}}{{end}}{{if .DatabaseConfig.AuthSource}}{{if .DatabaseConfig.ReplicaSet}}&{{else}}?{{end}}authSource={{.DatabaseConfig.AuthSource}}{{end}}}"
+{{end}}
+{{else}}
+DB_TYPE="postgresql"
+DB_URL="${DATABASE_URL:-postgres://username:password@localhost:5432/{{.ProjectName}}?sslmode=disable}"
+{{end}}
+MIGRATIONS_DIR="./migrations"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Function to print colored output
+print_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Check if required tools are installed
+check_tools() {
+{{if eq .DatabaseConfig.Type "mongodb"}}
+    if ! command -v mongosh &> /dev/null && ! command -v mongo &> /dev/null; then
+        print_error "MongoDB shell (mongosh or mongo) is not installed"
+        print_info "Install MongoDB shell to run database initialization"
+        exit 1
+    fi
+{{else}}
+    if ! command -v migrate &> /dev/null; then
+        print_error "golang-migrate tool is not installed"
+        print_info "Install it with: go install -tags '{{.DatabaseConfig.Type}}' github.com/golang-migrate/migrate/v4/cmd/migrate@latest"
+        exit 1
+    fi
+{{end}}
+}
+
+# Show usage
+show_usage() {
+    echo "Usage: $0 [COMMAND] [OPTIONS]"
+    echo ""
+    echo "Database Type: {{.DatabaseConfig.Type}}"
+    echo ""
+{{if eq .DatabaseConfig.Type "mongodb"}}
+    echo "Commands:"
+    echo "  init         Initialize MongoDB collections and indexes"
+    echo "  status       Show database status"
+    echo ""
+    echo "Environment Variables:"
+    echo "  DATABASE_URL - MongoDB connection string"
+    echo ""
+    echo "Examples:"
+    echo "  $0 init                  # Initialize MongoDB collections"
+    echo "  $0 status                # Show database status"
+{{else}}
+    echo "Commands:"
+    echo "  up [N]       Apply all or N up migrations"
+    echo "  down [N]     Apply all or N down migrations"
+    echo "  force V      Set version V but don't run migration (ignores dirty state)"
+    echo "  version      Print current migration version"
+    echo "  create NAME  Create new migration files"
+    echo "  status       Show migration status"
+    echo ""
+    echo "Environment Variables:"
+    echo "  DATABASE_URL - Database connection string"
+    echo ""
+    echo "Examples:"
+    echo "  $0 up                    # Apply all pending migrations"
+    echo "  $0 up 1                  # Apply next 1 migration"
+    echo "  $0 down 1                # Rollback 1 migration"
+    echo "  $0 create add_users      # Create new migration"
+    echo "  $0 version               # Show current version"
+{{end}}
+}
+
+# Create new migration
+create_migration() {
+    local name=$1
+    if [ -z "$name" ]; then
+        print_error "Migration name is required"
+        echo "Usage: $0 create MIGRATION_NAME"
+        exit 1
+    fi
+    
+    print_info "Creating new migration: $name"
+    migrate create -ext sql -dir "$MIGRATIONS_DIR" -seq "$name"
+    print_info "Migration files created in $MIGRATIONS_DIR"
+}
+
+# Apply migrations up
+migrate_up() {
+    local steps=$1
+    print_info "Applying migrations up..."
+    
+    if [ -n "$steps" ]; then
+        migrate -path "$MIGRATIONS_DIR" -database "$DB_URL" up "$steps"
+        print_info "Applied $steps migration(s) up"
+    else
+        migrate -path "$MIGRATIONS_DIR" -database "$DB_URL" up
+        print_info "Applied all pending migrations"
+    fi
+}
+
+# Apply migrations down
+migrate_down() {
+    local steps=$1
+    print_warning "Rolling back migrations..."
+    
+    if [ -n "$steps" ]; then
+        migrate -path "$MIGRATIONS_DIR" -database "$DB_URL" down "$steps"
+        print_info "Rolled back $steps migration(s)"
+    else
+        print_error "Rolling back all migrations requires explicit confirmation"
+        echo "Use: $0 down [NUMBER] to rollback specific number of migrations"
+        exit 1
+    fi
+}
+
+# Force version
+force_version() {
+    local version=$1
+    if [ -z "$version" ]; then
+        print_error "Version is required"
+        echo "Usage: $0 force VERSION"
+        exit 1
+    fi
+    
+    print_warning "Forcing version to $version (this will ignore dirty state)"
+    migrate -path "$MIGRATIONS_DIR" -database "$DB_URL" force "$version"
+    print_info "Version forced to $version"
+}
+
+# Show current version
+show_version() {
+    print_info "Current migration version:"
+    migrate -path "$MIGRATIONS_DIR" -database "$DB_URL" version
+}
+
+{{if eq .DatabaseConfig.Type "mongodb"}}
+# Initialize MongoDB collections and indexes
+init_mongodb() {
+    print_info "Initializing MongoDB collections and indexes..."
+    
+    local init_script="$MIGRATIONS_DIR/mongodb_init.js"
+    if [ ! -f "$init_script" ]; then
+        print_error "MongoDB initialization script not found: $init_script"
+        exit 1
+    fi
+    
+    # Try mongosh first, then fall back to mongo
+    if command -v mongosh &> /dev/null; then
+        mongosh "$DB_URL" < "$init_script"
+    elif command -v mongo &> /dev/null; then
+        mongo "$DB_URL" < "$init_script"
+    else
+        print_error "No MongoDB shell found (mongosh or mongo)"
+        exit 1
+    fi
+    
+    print_info "MongoDB initialization completed successfully"
+}
+
+# Show MongoDB status
+show_mongodb_status() {
+    print_info "MongoDB status:"
+    echo "Database URL: $DB_URL"
+    echo "Database Type: MongoDB"
+    echo "Initialization script: $MIGRATIONS_DIR/mongodb_init.js"
+    echo ""
+    
+    if [ -f "$MIGRATIONS_DIR/mongodb_init.js" ]; then
+        print_info "✅ MongoDB initialization script available"
+    else
+        print_warning "❌ MongoDB initialization script not found"
+    fi
+}
+{{else}}
+# Show migration status
+show_status() {
+    print_info "Migration status:"
+    echo "Database URL: $DB_URL"
+    echo "Database Type: {{.DatabaseConfig.Type}}"
+    echo "Migrations directory: $MIGRATIONS_DIR"
+    echo ""
+    
+    if [ -d "$MIGRATIONS_DIR" ]; then
+        local migration_count=$(find "$MIGRATIONS_DIR" -name "*.sql" | wc -l)
+        echo "Total migration files: $((migration_count / 2))"
+        echo ""
+        echo "Available migrations:"
+        ls -la "$MIGRATIONS_DIR"/*.sql 2>/dev/null || echo "No migration files found"
+    else
+        print_warning "Migrations directory does not exist: $MIGRATIONS_DIR"
+    fi
+    
+    echo ""
+    show_version
+}
+{{end}}
+
+# Main script logic
+main() {
+    check_tools
+    
+    local command=$1
+    shift || true
+    
+{{if eq .DatabaseConfig.Type "mongodb"}}
+    case "$command" in
+        "init")
+            init_mongodb
+            ;;
+        "status")
+            show_mongodb_status
+            ;;
+        "help"|"--help"|"-h"|"")
+            show_usage
+            ;;
+        *)
+            print_error "Unknown command: $command"
+            echo ""
+            show_usage
+            exit 1
+            ;;
+    esac
+{{else}}
+    case "$command" in
+        "up")
+            migrate_up "$1"
+            ;;
+        "down")
+            migrate_down "$1"
+            ;;
+        "force")
+            force_version "$1"
+            ;;
+        "version")
+            show_version
+            ;;
+        "create")
+            create_migration "$1"
+            ;;
+        "status")
+            show_status
+            ;;
+        "help"|"--help"|"-h"|"")
+            show_usage
+            ;;
+        *)
+            print_error "Unknown command: $command"
+            echo ""
+            show_usage
+            exit 1
+            ;;
+    esac
+{{end}}
+}
+
+# Run main function with all arguments
+main "$@"

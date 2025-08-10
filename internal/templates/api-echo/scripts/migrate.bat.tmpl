@@ -1,0 +1,234 @@
+@echo off
+REM Database migration script for {{.ProjectName}} (Windows)
+REM This script handles database migrations and initialization
+
+setlocal enabledelayedexpansion
+
+REM Configuration
+{{if eq .DatabaseConfig.Type "postgresql"}}
+set DB_TYPE=postgresql
+{{if eq .DatabaseConfig.ConfigType "single"}}
+if "%DATABASE_URL%"=="" set DATABASE_URL=postgres://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}?sslmode={{.DatabaseConfig.SSLMode}}
+{{else if eq .DatabaseConfig.ConfigType "read-write"}}
+if "%DATABASE_WRITE_URL%"=="" set DATABASE_WRITE_URL=postgres://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.WriteHost}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}?sslmode={{.DatabaseConfig.SSLMode}}
+set DB_URL=%DATABASE_WRITE_URL%
+{{else if eq .DatabaseConfig.ConfigType "cluster"}}
+for /f "tokens=1 delims=," %%a in ("%DATABASE_CLUSTER_URLS%") do set DB_URL=%%a
+{{end}}
+{{else if eq .DatabaseConfig.Type "mysql"}}
+set DB_TYPE=mysql
+{{if eq .DatabaseConfig.ConfigType "single"}}
+if "%DATABASE_URL%"=="" set DATABASE_URL={{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@tcp({{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}})/{{.DatabaseConfig.DatabaseName}}?tls={{.DatabaseConfig.SSLMode}}
+{{else if eq .DatabaseConfig.ConfigType "read-write"}}
+if "%DATABASE_WRITE_URL%"=="" set DATABASE_WRITE_URL={{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@tcp({{.DatabaseConfig.WriteHost}}:{{.DatabaseConfig.Port}})/{{.DatabaseConfig.DatabaseName}}?tls={{.DatabaseConfig.SSLMode}}
+set DB_URL=%DATABASE_WRITE_URL%
+{{else if eq .DatabaseConfig.ConfigType "cluster"}}
+for /f "tokens=1 delims=," %%a in ("%DATABASE_CLUSTER_URLS%") do set DB_URL=%%a
+{{end}}
+{{else if eq .DatabaseConfig.Type "mongodb"}}
+set DB_TYPE=mongodb
+{{if eq .DatabaseConfig.ConfigType "single"}}
+if "%DATABASE_URL%"=="" set DATABASE_URL=mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.Host}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.AuthSource}}?authSource={{.DatabaseConfig.AuthSource}}{{end}}
+{{else if eq .DatabaseConfig.ConfigType "read-write"}}
+if "%DATABASE_WRITE_URL%"=="" set DATABASE_WRITE_URL=mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{.DatabaseConfig.WriteHost}}:{{.DatabaseConfig.Port}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.AuthSource}}?authSource={{.DatabaseConfig.AuthSource}}{{end}}
+set DB_URL=%DATABASE_WRITE_URL%
+{{else if eq .DatabaseConfig.ConfigType "cluster"}}
+if "%DATABASE_URL%"=="" set DATABASE_URL=mongodb://{{.DatabaseConfig.Username}}:{{.DatabaseConfig.Password}}@{{range $index, $node := .DatabaseConfig.ClusterNodes}}{{if $index}},{{end}}{{$node}}:{{$.DatabaseConfig.Port}}{{end}}/{{.DatabaseConfig.DatabaseName}}{{if .DatabaseConfig.ReplicaSet}}?replicaSet={{.DatabaseConfig.ReplicaSet}}{{end}}{{if .DatabaseConfig.AuthSource}}{{if .DatabaseConfig.ReplicaSet}}&{{else}}?{{end}}authSource={{.DatabaseConfig.AuthSource}}{{end}}
+{{end}}
+{{else}}
+set DB_TYPE=postgresql
+if "%DATABASE_URL%"=="" set DATABASE_URL=postgres://username:password@localhost:5432/{{.ProjectName}}?sslmode=disable
+{{end}}
+set MIGRATIONS_DIR=.\migrations
+
+REM Colors for output (Windows doesn't support colors in batch easily, so we'll use text)
+set INFO_PREFIX=[INFO]
+set WARNING_PREFIX=[WARNING]
+set ERROR_PREFIX=[ERROR]
+
+REM Check if required tools are installed
+{{if eq .DatabaseConfig.Type "mongodb"}}
+where mongosh >nul 2>&1
+if %errorlevel% neq 0 (
+    where mongo >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo %ERROR_PREFIX% MongoDB shell (mongosh or mongo) is not installed
+        echo Install MongoDB shell to run database initialization
+        exit /b 1
+    )
+)
+{{else}}
+where migrate >nul 2>&1
+if %errorlevel% neq 0 (
+    echo %ERROR_PREFIX% golang-migrate tool is not installed
+    echo Install it with: go install -tags '{{.DatabaseConfig.Type}}' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+    exit /b 1
+)
+{{end}}
+
+REM Show usage
+if "%1"=="" goto show_usage
+if "%1"=="help" goto show_usage
+if "%1"=="--help" goto show_usage
+if "%1"=="-h" goto show_usage
+
+REM Handle commands
+if "%1"=="up" goto migrate_up
+if "%1"=="down" goto migrate_down
+if "%1"=="force" goto force_version
+if "%1"=="version" goto show_version
+if "%1"=="create" goto create_migration
+if "%1"=="status" goto show_status
+{{if eq .DatabaseConfig.Type "mongodb"}}
+if "%1"=="init" goto init_mongodb
+{{end}}
+
+echo %ERROR_PREFIX% Unknown command: %1
+echo.
+goto show_usage
+
+:show_usage
+echo Usage: %0 [COMMAND] [OPTIONS]
+echo.
+echo Database Type: {{.DatabaseConfig.Type}}
+echo.
+{{if eq .DatabaseConfig.Type "mongodb"}}
+echo Commands:
+echo   init         Initialize MongoDB collections and indexes
+echo   status       Show database status
+echo.
+echo Environment Variables:
+echo   DATABASE_URL - MongoDB connection string
+echo.
+echo Examples:
+echo   %0 init                  # Initialize MongoDB collections
+echo   %0 status                # Show database status
+{{else}}
+echo Commands:
+echo   up [N]       Apply all or N up migrations
+echo   down [N]     Apply all or N down migrations
+echo   force V      Set version V but don't run migration (ignores dirty state)
+echo   version      Print current migration version
+echo   create NAME  Create new migration files
+echo   status       Show migration status
+echo.
+echo Environment Variables:
+echo   DATABASE_URL - Database connection string
+echo.
+echo Examples:
+echo   %0 up                    # Apply all pending migrations
+echo   %0 up 1                  # Apply next 1 migration
+echo   %0 down 1                # Rollback 1 migration
+echo   %0 create add_users      # Create new migration
+echo   %0 version               # Show current version
+{{end}}
+goto end
+
+{{if eq .DatabaseConfig.Type "mongodb"}}
+:init_mongodb
+echo %INFO_PREFIX% Initializing MongoDB collections and indexes...
+if exist "%MIGRATIONS_DIR%\mongodb_init.js" (
+    where mongosh >nul 2>&1
+    if %errorlevel% equ 0 (
+        mongosh "%DB_URL%" < "%MIGRATIONS_DIR%\mongodb_init.js"
+    ) else (
+        mongo "%DB_URL%" < "%MIGRATIONS_DIR%\mongodb_init.js"
+    )
+    if %errorlevel% equ 0 (
+        echo %INFO_PREFIX% MongoDB initialization completed successfully
+    ) else (
+        echo %ERROR_PREFIX% MongoDB initialization failed
+        exit /b 1
+    )
+) else (
+    echo %ERROR_PREFIX% MongoDB initialization script not found: %MIGRATIONS_DIR%\mongodb_init.js
+    exit /b 1
+)
+goto end
+
+:show_status
+echo %INFO_PREFIX% MongoDB status:
+echo Database URL: %DB_URL%
+echo Database Type: MongoDB
+echo Initialization script: %MIGRATIONS_DIR%\mongodb_init.js
+echo.
+if exist "%MIGRATIONS_DIR%\mongodb_init.js" (
+    echo %INFO_PREFIX% MongoDB initialization script available
+) else (
+    echo %WARNING_PREFIX% MongoDB initialization script not found
+)
+goto end
+{{else}}
+:migrate_up
+echo %INFO_PREFIX% Applying migrations up...
+if "%2"=="" (
+    migrate -path "%MIGRATIONS_DIR%" -database "%DB_URL%" up
+    echo %INFO_PREFIX% Applied all pending migrations
+) else (
+    migrate -path "%MIGRATIONS_DIR%" -database "%DB_URL%" up %2
+    echo %INFO_PREFIX% Applied %2 migration(s) up
+)
+goto end
+
+:migrate_down
+if "%2"=="" (
+    echo %ERROR_PREFIX% Rolling back all migrations requires explicit confirmation
+    echo Use: %0 down [NUMBER] to rollback specific number of migrations
+    exit /b 1
+) else (
+    echo %WARNING_PREFIX% Rolling back migrations...
+    migrate -path "%MIGRATIONS_DIR%" -database "%DB_URL%" down %2
+    echo %INFO_PREFIX% Rolled back %2 migration(s)
+)
+goto end
+
+:force_version
+if "%2"=="" (
+    echo %ERROR_PREFIX% Version is required
+    echo Usage: %0 force VERSION
+    exit /b 1
+)
+echo %WARNING_PREFIX% Forcing version to %2 (this will ignore dirty state)
+migrate -path "%MIGRATIONS_DIR%" -database "%DB_URL%" force %2
+echo %INFO_PREFIX% Version forced to %2
+goto end
+
+:show_version
+echo %INFO_PREFIX% Current migration version:
+migrate -path "%MIGRATIONS_DIR%" -database "%DB_URL%" version
+goto end
+
+:create_migration
+if "%2"=="" (
+    echo %ERROR_PREFIX% Migration name is required
+    echo Usage: %0 create MIGRATION_NAME
+    exit /b 1
+)
+echo %INFO_PREFIX% Creating new migration: %2
+migrate create -ext sql -dir "%MIGRATIONS_DIR%" -seq %2
+echo %INFO_PREFIX% Migration files created in %MIGRATIONS_DIR%
+goto end
+
+:show_status
+echo %INFO_PREFIX% Migration status:
+echo Database URL: %DB_URL%
+echo Database Type: {{.DatabaseConfig.Type}}
+echo Migrations directory: %MIGRATIONS_DIR%
+echo.
+if exist "%MIGRATIONS_DIR%" (
+    for /f %%i in ('dir /b "%MIGRATIONS_DIR%\*.sql" 2^>nul ^| find /c /v ""') do set migration_count=%%i
+    set /a migration_pairs=!migration_count!/2
+    echo Total migration files: !migration_pairs!
+    echo.
+    echo Available migrations:
+    dir "%MIGRATIONS_DIR%\*.sql" 2>nul
+) else (
+    echo %WARNING_PREFIX% Migrations directory does not exist: %MIGRATIONS_DIR%
+)
+echo.
+call :show_version
+goto end
+{{end}}
+
+:end
+endlocal

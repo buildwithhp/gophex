@@ -1,0 +1,75 @@
+package user
+
+import (
+	"context"
+	"fmt"
+
+	"{{.ModuleName}}/internal/infrastructure/auth"
+	"{{.ModuleName}}/internal/pkg/errors"
+)
+
+type Service interface {
+	Create(ctx context.Context, user *User) (*User, error)
+	GetByID(ctx context.Context, id int64) (*User, error)
+	GetAll(ctx context.Context, page, limit int) ([]*User, int64, error)
+	Update(ctx context.Context, id int64, user *User) (*User, error)
+	Delete(ctx context.Context, id int64) error
+	Login(ctx context.Context, email, password string) (string, error)
+}
+
+type service struct {
+	repo       Repository
+	jwtService auth.JWTService
+}
+
+func NewService(repo Repository, jwtService auth.JWTService) Service {
+	return &service{
+		repo:       repo,
+		jwtService: jwtService,
+	}
+}
+
+func (s *service) Create(ctx context.Context, user *User) (*User, error) {
+	// Hash password before storing
+	hashedPassword, err := auth.HashPassword(user.Password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+	user.Password = hashedPassword
+
+	return s.repo.Create(ctx, user)
+}
+
+func (s *service) GetByID(ctx context.Context, id int64) (*User, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
+func (s *service) GetAll(ctx context.Context, page, limit int) ([]*User, int64, error) {
+	return s.repo.GetAll(ctx, page, limit)
+}
+
+func (s *service) Update(ctx context.Context, id int64, user *User) (*User, error) {
+	return s.repo.Update(ctx, id, user)
+}
+
+func (s *service) Delete(ctx context.Context, id int64) error {
+	return s.repo.Delete(ctx, id)
+}
+
+func (s *service) Login(ctx context.Context, email, password string) (string, error) {
+	user, err := s.repo.GetByEmail(ctx, email)
+	if err != nil {
+		return "", errors.ErrInvalidCredentials
+	}
+
+	if !auth.CheckPasswordHash(password, user.Password) {
+		return "", errors.ErrInvalidCredentials
+	}
+
+	token, err := s.jwtService.GenerateToken(user.ID, user.Email)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	return token, nil
+}

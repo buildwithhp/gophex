@@ -94,17 +94,25 @@ func RunDevelopmentWorkflow(projectPath, projectType string) error {
 	// Step 4: Start application
 	fmt.Println("\n🚀 Step 4/4: Starting application...")
 
-	var startApp bool
-	startPrompt := &survey.Confirm{
+	var startApp string
+	startPrompt := &survey.Select{
 		Message: "Start the application now?",
-		Default: true,
+		Options: []string{
+			"Yes - Start the application",
+			"No - Skip for now",
+			"Quit",
+		},
 	}
 
 	if err := survey.AskOne(startPrompt, &startApp); err != nil {
 		return err
 	}
 
-	if startApp {
+	if startApp == "Quit" {
+		return nil
+	}
+
+	if startApp[:3] == "Yes" {
 		if err := StartApplication(projectPath, projectType); err != nil {
 			fmt.Printf("⚠️  Failed to start application: %v\n", err)
 			fmt.Println("   You can start the application manually later using the menu option.")

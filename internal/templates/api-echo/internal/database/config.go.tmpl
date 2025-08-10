@@ -1,0 +1,39 @@
+package database
+
+// Config holds database configuration
+type Config struct {
+	Type         string   `json:"type"`         // postgresql, mysql, mongodb
+	ConfigType   string   `json:"config_type"`  // single, read-write, cluster
+	Host         string   `json:"host"`
+	Port         string   `json:"port"`
+	Username     string   `json:"username"`
+	Password     string   `json:"password"`
+	DatabaseName string   `json:"database_name"`
+	ReadHost     string   `json:"read_host"`     // for read-write setup
+	WriteHost    string   `json:"write_host"`    // for read-write setup
+	ClusterNodes []string `json:"cluster_nodes"` // for cluster setup
+	SSLMode      string   `json:"ssl_mode"`      // for PostgreSQL/MySQL
+	AuthSource   string   `json:"auth_source"`   // for MongoDB
+	ReplicaSet   string   `json:"replica_set"`   // for MongoDB
+}
+
+// NewConfig creates a new database configuration with defaults
+func NewConfig() *Config {
+	return &Config{
+		Type:         "{{.DatabaseConfig.Type}}",
+		ConfigType:   "{{.DatabaseConfig.ConfigType}}",
+		Host:         "{{.DatabaseConfig.Host}}",
+		Port:         "{{.DatabaseConfig.Port}}",
+		Username:     "{{.DatabaseConfig.Username}}",
+		Password:     "{{.DatabaseConfig.Password}}",
+		DatabaseName: "{{.DatabaseConfig.DatabaseName}}",
+		ReadHost:     "{{.DatabaseConfig.ReadHost}}",
+		WriteHost:    "{{.DatabaseConfig.WriteHost}}",
+		ClusterNodes: []string{
+{{range .DatabaseConfig.ClusterNodes}}			"{{.}}",
+{{end}}		},
+		SSLMode:      "{{.DatabaseConfig.SSLMode}}",
+		AuthSource:   "{{.DatabaseConfig.AuthSource}}",
+		ReplicaSet:   "{{.DatabaseConfig.ReplicaSet}}",
+	}
+}

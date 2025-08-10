@@ -1,0 +1,49 @@
+package responses
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"{{.ModuleName}}/internal/pkg/validator"
+)
+
+type ErrorResponse struct {
+	Success bool        `json:"success"`
+	Message string      `json:"message"`
+	Error   interface{} `json:"error,omitempty"`
+}
+
+type ValidationErrorResponse struct {
+	Success bool                    `json:"success"`
+	Message string                  `json:"message"`
+	Errors  []validator.FieldError  `json:"errors"`
+}
+
+func Error(w http.ResponseWriter, statusCode int, message string, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	response := ErrorResponse{
+		Success: false,
+		Message: message,
+	}
+
+	if err != nil {
+		response.Error = err.Error()
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+func ValidationError(w http.ResponseWriter, validationErrors []validator.FieldError) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+
+	response := ValidationErrorResponse{
+		Success: false,
+		Message: "Validation failed",
+		Errors:  validationErrors,
+	}
+
+	json.NewEncoder(w).Encode(response)
+}

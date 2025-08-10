@@ -1,0 +1,157 @@
+@echo off
+REM Change Detection Script for {{.ProjectName}} (Windows)
+REM This script helps detect manual modifications to generated code
+
+setlocal enabledelayedexpansion
+
+REM Configuration
+set METADATA_FILE=.gophex-generated
+set PROJECT_ROOT=%~dp0..
+
+REM Colors (text-based for Windows)
+set INFO_PREFIX=[INFO]
+set WARNING_PREFIX=[WARNING]
+set ERROR_PREFIX=[ERROR]
+set DETECT_PREFIX=[DETECT]
+
+REM Check if this is a generated project
+if not exist "%METADATA_FILE%" (
+    echo %ERROR_PREFIX% This doesn't appear to be a Gophex-generated project
+    echo %INFO_PREFIX% Missing metadata file: %METADATA_FILE%
+    exit /b 1
+)
+
+echo %INFO_PREFIX% Gophex-generated project detected
+
+REM Read metadata
+for /f "tokens=2 delims==" %%a in ('findstr "generated_at=" "%METADATA_FILE%"') do set generated_at=%%a
+for /f "tokens=2 delims==" %%a in ('findstr "project_type=" "%METADATA_FILE%"') do set project_type=%%a
+for /f "tokens=2 delims==" %%a in ('findstr "database_type=" "%METADATA_FILE%"') do set database_type=%%a
+
+echo   Generated: %generated_at%
+echo   Type: %project_type%
+echo   Database: %database_type%
+
+REM Check Git-based changes
+echo.
+echo %DETECT_PREFIX% Checking Git history for manual changes...
+
+if not exist ".git" (
+    echo %WARNING_PREFIX% No Git repository found - cannot detect commit-based changes
+    goto check_files
+)
+
+REM Count commits since generation (simplified for Windows)
+git log --oneline --since="%generated_at%" --grep="gophex" --invert-grep >nul 2>&1
+if %errorlevel% equ 0 (
+    echo %WARNING_PREFIX% Found manual commits since generation
+    echo Recent manual commits:
+    git log --oneline --since="%generated_at%" --grep="gophex" --invert-grep -5 2>nul
+) else (
+    echo %INFO_PREFIX% No manual commits detected since generation
+)
+
+:check_files
+REM Check file modification times (simplified for Windows)
+echo.
+echo %DETECT_PREFIX% Checking for modified files...
+
+REM Read generated files list
+for /f "tokens=2 delims==" %%a in ('findstr "generated_files=" "%METADATA_FILE%"') do set generated_files=%%a
+
+REM Note: File timestamp comparison is complex in batch, so we'll do a simplified check
+echo %INFO_PREFIX% File modification check completed (simplified on Windows)
+
+REM Check for custom code patterns
+echo.
+echo %DETECT_PREFIX% Scanning for custom code patterns...
+
+set found_custom=0
+
+findstr /r /s "// CUSTOM:" *.go >nul 2>&1
+if %errorlevel% equ 0 (
+    echo %WARNING_PREFIX% Found custom code markers:
+    echo   // CUSTOM: markers found
+    set found_custom=1
+)
+
+findstr /r /s "// TODO:" *.go >nul 2>&1
+if %errorlevel% equ 0 (
+    echo %WARNING_PREFIX% Found TODO markers
+    set found_custom=1
+)
+
+findstr /r /s "// FIXME:" *.go >nul 2>&1
+if %errorlevel% equ 0 (
+    echo %WARNING_PREFIX% Found FIXME markers
+    set found_custom=1
+)
+
+if %found_custom% equ 0 (
+    echo %INFO_PREFIX% No custom code markers found
+)
+
+REM Check for custom imports (simplified)
+echo.
+echo %DETECT_PREFIX% Checking for custom imports...
+
+findstr /r /s "import.*github.com" *.go | findstr /v "github.com/gorilla\|github.com/lib/pq\|github.com/go-sql-driver\|go.mongodb.org" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo %WARNING_PREFIX% Found custom imports
+) else (
+    echo %INFO_PREFIX% No custom imports detected
+)
+
+REM Check for custom migrations
+echo.
+echo %DETECT_PREFIX% Checking for database schema modifications...
+
+if exist "migrations" (
+    set custom_migrations=0
+    
+    REM Check for files other than template migrations
+    for %%f in (migrations\*) do (
+        echo %%f | findstr /v "000001_create_users_table\|000002_create_posts_table\|mongodb_init.js" >nul
+        if %errorlevel% equ 0 set custom_migrations=1
+    )
+    
+    if !custom_migrations! equ 1 (
+        echo %WARNING_PREFIX% Found custom migration files
+    ) else (
+        echo %INFO_PREFIX% No custom migrations detected
+    )
+) else (
+    echo %INFO_PREFIX% No migrations directory found
+)
+
+REM Generate summary
+echo.
+echo %DETECT_PREFIX% Change Detection Summary
+echo ==========================================
+echo.
+echo Project: {{.ProjectName}}
+echo Scan Date: %date% %time%
+echo Generated: %generated_at%
+echo.
+
+REM Determine if changes were detected (simplified logic)
+if %found_custom% equ 1 (
+    echo %WARNING_PREFIX% MANUAL CHANGES DETECTED
+    echo    This project has been manually modified since generation.
+    echo    Please review changes carefully before applying updates.
+    echo.
+    echo    Recommended actions:
+    echo    1. Review all detected changes
+    echo    2. Document custom modifications
+    echo    3. Use step-by-step updates for safety
+) else (
+    echo %INFO_PREFIX% NO OBVIOUS MANUAL CHANGES DETECTED
+    echo    This project appears to be in its original generated state.
+    echo    Updates can likely be applied safely.
+)
+
+echo.
+echo Note: Windows change detection is simplified compared to Unix systems.
+echo For comprehensive analysis, consider using Git or manual review.
+
+endlocal

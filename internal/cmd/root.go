@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"embed"
 	"errors"
 	"fmt"
 	"os"
@@ -9,7 +10,15 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/buildwithhp/gophex/internal/utils"
 	"github.com/buildwithhp/gophex/pkg/version"
+	"github.com/dolmen-go/kittyimg"
+
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 )
+
+//go:embed assets/*
+var files embed.FS
 
 // ErrReturnToMenu is a special error that signals to return to the main menu
 var ErrReturnToMenu = errors.New("return to main menu")
@@ -24,6 +33,11 @@ func isUserInterrupt(err error) bool {
 		strings.Contains(errStr, "eof") ||
 		strings.Contains(errStr, "cancelled") ||
 		strings.Contains(errStr, "canceled")
+}
+
+// clearScreen clears the terminal screen for a cleaner user experience
+func clearScreen() {
+	fmt.Print("\033[H\033[2J")
 }
 
 // askWithInterruptHandling wraps survey.AskOne with graceful interrupt handling
@@ -60,6 +74,7 @@ func Execute() error {
 			options = []string{
 				"Load current project",
 				"Generate a new project",
+				"Enhanced CRUD Wizard - Learn Clean Architecture",
 				"Load different project",
 				"Show version",
 				"Show help",
@@ -71,6 +86,7 @@ func Execute() error {
 			fmt.Println()
 			options = []string{
 				"Generate a new project",
+				"Enhanced CRUD Wizard - Learn Clean Architecture",
 				"Load existing project",
 				"Show version",
 				"Show help",
@@ -80,8 +96,10 @@ func Execute() error {
 	} else {
 		options = []string{
 			"Generate a new project",
+			"Enhanced CRUD Wizard - Learn Clean Architecture",
 			"Load existing project",
 			"Show version",
+			"Print image",
 			"Show help",
 			"Quit",
 		}
@@ -120,6 +138,27 @@ func Execute() error {
 				continue // Return to main menu
 			}
 			return err
+		case "Enhanced CRUD Wizard - Learn Clean Architecture":
+			// First check if we're in a project directory
+			if hasCurrentProject && currentProject.Project.Type == "api" {
+				err = RunEnhancedCRUDWizard(cwd)
+			} else {
+				fmt.Println("🎓 Enhanced CRUD Wizard")
+				fmt.Println("This wizard requires an existing API project.")
+				fmt.Println("Let's create one first, then run the CRUD wizard.")
+				fmt.Println()
+
+				err = GenerateProject()
+				if err == nil {
+					// After successful project generation, run the enhanced wizard
+					fmt.Println("\n🚀 Now let's create your first CRUD operations!")
+					err = RunEnhancedCRUDWizard(cwd)
+				}
+			}
+			if err == ErrReturnToMenu {
+				continue // Return to main menu
+			}
+			return err
 		case "Load existing project", "Load different project":
 			err = LoadExistingProject()
 			if err == ErrReturnToMenu {
@@ -134,6 +173,18 @@ func Execute() error {
 			continue // Stay in menu
 		case "Quit":
 			return GetProcessManager().HandleGracefulShutdown()
+		case "Print image":
+
+			f, err := files.Open("assets/my-image.jpeg")
+			if err != nil {
+				return fmt.Errorf("failed to open embedded image file: %w", err)
+			}
+
+			// kittyimg.Fprintln(os.Stdout, imageData)
+			kittyimg.Transcode(os.Stdout, f)
+			fmt.Println()
+			f.Close()
+			continue
 		default:
 			return fmt.Errorf("unknown action: %s", action)
 		}

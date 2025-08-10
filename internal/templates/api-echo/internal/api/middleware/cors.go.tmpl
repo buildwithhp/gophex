@@ -1,0 +1,63 @@
+package middleware
+
+import (
+	"net/http"
+)
+
+type CORSMiddleware struct {
+	allowedOrigins []string
+	allowedMethods []string
+	allowedHeaders []string
+}
+
+func NewCORSMiddleware(allowedOrigins, allowedMethods, allowedHeaders []string) *CORSMiddleware {
+	return &CORSMiddleware{
+		allowedOrigins: allowedOrigins,
+		allowedMethods: allowedMethods,
+		allowedHeaders: allowedHeaders,
+	}
+}
+
+func (m *CORSMiddleware) Handler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		
+		// Check if origin is allowed
+		allowed := false
+		for _, allowedOrigin := range m.allowedOrigins {
+			if allowedOrigin == "*" || allowedOrigin == origin {
+				allowed = true
+				break
+			}
+		}
+
+		if allowed {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+
+		w.Header().Set("Access-Control-Allow-Methods", joinStrings(m.allowedMethods, ", "))
+		w.Header().Set("Access-Control-Allow-Headers", joinStrings(m.allowedHeaders, ", "))
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+
+		// Handle preflight requests
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func joinStrings(slice []string, separator string) string {
+	if len(slice) == 0 {
+		return ""
+	}
+	
+	result := slice[0]
+	for i := 1; i < len(slice); i++ {
+		result += separator + slice[i]
+	}
+	return result
+}

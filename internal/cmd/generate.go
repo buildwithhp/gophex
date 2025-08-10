@@ -4,12 +4,49 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/buildwithhp/gophex/internal/generator"
 )
 
 func GenerateProject() error {
+	// Offer choice between quick generation and educational wizard
+	var approach string
+	approachPrompt := &survey.Select{
+		Message: "How would you like to generate your project?",
+		Options: []string{
+			"🎓 Educational Wizard - Learn step-by-step (recommended)",
+			"⚡ Quick Generation - Direct project creation",
+			"Quit",
+		},
+		Help: "The Educational Wizard teaches Go architecture patterns while building your project",
+	}
+
+	err := survey.AskOne(approachPrompt, &approach)
+	if err != nil {
+		if isUserInterrupt(err) {
+			fmt.Println("\nProject generation cancelled. Goodbye! 👋")
+			return nil
+		}
+		return fmt.Errorf("approach selection failed: %w", err)
+	}
+
+	if approach == "Quit" {
+		return GetProcessManager().HandleGracefulShutdown()
+	}
+
+	if strings.HasPrefix(approach, "🎓") {
+		// Use the enhanced educational wizard
+		return RunEnhancedProjectWizard()
+	}
+
+	// Continue with quick generation for users who want the old behavior
+	return runQuickProjectGeneration()
+}
+
+// runQuickProjectGeneration provides the original quick generation experience
+func runQuickProjectGeneration() error {
 	var projectType string
 	var projectName string
 
@@ -67,10 +104,16 @@ func GenerateProject() error {
 		return fmt.Errorf("project name input failed: %w", err)
 	}
 
-	// Get database configuration for API projects
+	// Get framework and database configuration for API projects
+	var framework string
 	var dbConfig *generator.DatabaseConfig
 	var redisConfig *generator.RedisConfig
 	if projectType == "api" {
+		framework, err = getFrameworkConfiguration()
+		if err != nil {
+			return fmt.Errorf("framework configuration failed: %w", err)
+		}
+
 		dbConfig, err = getDatabaseConfiguration(projectName)
 		if err != nil {
 			return fmt.Errorf("database configuration failed: %w", err)
@@ -92,10 +135,14 @@ func GenerateProject() error {
 
 	// Path confirmation loop
 	for {
-		var confirm bool
-		confirmPrompt := &survey.Confirm{
+		var confirm string
+		confirmPrompt := &survey.Select{
 			Message: fmt.Sprintf("Generate %s project '%s' in %s?", projectType, projectName, projectPath),
-			Default: true,
+			Options: []string{
+				"Yes - Generate project",
+				"No - Change settings",
+				"Quit",
+			},
 		}
 
 		err = survey.AskOne(confirmPrompt, &confirm)
@@ -106,7 +153,11 @@ func GenerateProject() error {
 			return fmt.Errorf("confirmation failed: %w", err)
 		}
 
-		if confirm {
+		if confirm == "Quit" {
+			return GetProcessManager().HandleGracefulShutdown()
+		}
+
+		if confirm[:3] == "Yes" {
 			break // User confirmed, proceed with generation
 		}
 
@@ -158,20 +209,8 @@ func GenerateProject() error {
 
 	// Generate the project
 	gen := generator.New()
-	if dbConfig != nil {
-		if err := gen.GenerateWithConfig(projectType, projectName, projectPath, dbConfig); err != nil {
-			return fmt.Errorf("error generating project: %w", err)
-		}
-	} else {
-		if projectType == "api" && (dbConfig != nil || redisConfig != nil) {
-			if err := gen.GenerateWithFullConfig(projectType, projectName, projectPath, dbConfig, redisConfig); err != nil {
-				return fmt.Errorf("error generating project: %w", err)
-			}
-		} else {
-			if err := gen.Generate(projectType, projectName, projectPath); err != nil {
-				return fmt.Errorf("error generating project: %w", err)
-			}
-		}
+	if err := gen.GenerateWithFramework(projectType, projectName, projectPath, framework, dbConfig, redisConfig); err != nil {
+		return fmt.Errorf("error generating project: %w", err)
 	}
 
 	// Create project tracking metadata
@@ -478,17 +517,25 @@ func getReadWriteConfig(config *generator.DatabaseConfig) error {
 	}
 
 	// Ask if read host is the same as write host
-	var sameHost bool
-	sameHostPrompt := &survey.Confirm{
+	var sameHost string
+	sameHostPrompt := &survey.Select{
 		Message: "Use the same host for read operations?",
-		Default: true,
+		Options: []string{
+			"Yes - Use same host for read operations",
+			"No - Use different host for read operations",
+			"Quit",
+		},
 	}
 	err = survey.AskOne(sameHostPrompt, &sameHost)
 	if err != nil {
 		return err
 	}
 
-	if sameHost {
+	if sameHost == "Quit" {
+		return GetProcessManager().HandleGracefulShutdown()
+	}
+
+	if sameHost[:3] == "Yes" {
 		config.ReadHost = config.WriteHost
 	} else {
 		readHostPrompt := &survey.Input{
@@ -597,4 +644,43 @@ func getClusterConfig(config *generator.DatabaseConfig) error {
 	}
 
 	return nil
+}
+
+func getFrameworkConfiguration() (string, error) {
+	var framework string
+	frameworkPrompt := &survey.Select{
+		Message: "Which web framework would you like to use for your API?",
+		Options: []string{
+			"gin - Fast HTTP web framework with a martini-like API",
+			"echo - High performance, extensible, minimalist Go web framework",
+			"gorilla - A web toolkit for the Go programming language",
+			"Quit",
+		},
+		Help: "Choose the web framework that best fits your project needs",
+	}
+
+	err := survey.AskOne(frameworkPrompt, &framework)
+	if err != nil {
+		if isUserInterrupt(err) {
+			return "", GetProcessManager().HandleGracefulShutdown()
+		}
+		return "", fmt.Errorf("framework selection failed: %w", err)
+	}
+
+	// Handle quit option
+	if framework == "Quit" {
+		return "", GetProcessManager().HandleGracefulShutdown()
+	}
+
+	// Extract framework type from selection
+	switch {
+	case framework[:3] == "gin":
+		return "gin", nil
+	case framework[:4] == "echo":
+		return "echo", nil
+	case framework[:7] == "gorilla":
+		return "gorilla", nil
+	default:
+		return "gin", nil // Default fallback
+	}
 }

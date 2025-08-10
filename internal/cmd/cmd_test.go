@@ -6,6 +6,10 @@ import (
 	"testing"
 )
 
+// TestIsUserInterrupt tests the isUserInterrupt function against various error inputs.
+//
+// This test uses table-driven testing to ensure isUserInterrupt behaves as expected
+// for different types of errors, including nil, interrupt, EOF, and regular errors.
 func TestIsUserInterrupt(t *testing.T) {
 	tests := []struct {
 		name     string

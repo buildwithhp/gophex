@@ -1,0 +1,27 @@
+
+url1 : /path1/path2/chunk3
+url2 : /path1/path3/xyz
+url3 : /
+key1 : https://domain.com/path1?key=value&key2=value2
+key2 : https://domain.com/path1?key=value&key2=value3
+
+
+appDomain : urlshortner.com/key1
+
+singleEndpoint: /
+domain1.com/users/list
+domain1.com/users/create
+domain1.com/admin/dashboard
+
+domain1.com
+  parent1
+    file1
+    file2
+  directory2
+    file3
+domain2
+  directory1
+    file4
+    file5
+  directory2
+    file6

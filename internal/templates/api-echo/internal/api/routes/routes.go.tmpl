@@ -1,0 +1,96 @@
+package routes
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/labstack/echo/v4"
+	"{{.ModuleName}}/internal/api/handlers"
+	"{{.ModuleName}}/internal/api/middleware"
+	"{{.ModuleName}}/internal/config"
+	"{{.ModuleName}}/internal/database"
+	"{{.ModuleName}}/internal/domain/post"
+	"{{.ModuleName}}/internal/domain/user"
+	"{{.ModuleName}}/internal/infrastructure/auth"
+	"{{.ModuleName}}/internal/infrastructure/database/postgres"{{if .RedisConfig.Enabled}}
+	"{{.ModuleName}}/internal/infrastructure/database/redis"{{end}}
+	"{{.ModuleName}}/internal/pkg/logger"
+	"{{.ModuleName}}/internal/pkg/validator"
+)
+
+{{if .RedisConfig.Enabled}}func SetupEcho(e *echo.Echo, db database.Database, redisClient *redis.Client, logger logger.Logger, cfg *config.Config) *echo.Echo {
+{{else}}func SetupEcho(e *echo.Echo, db database.Database, logger logger.Logger, cfg *config.Config) *echo.Echo {
+{{end}}
+	// Initialize repositories
+{{if eq .DatabaseConfig.Type "mongodb"}}
+	userRepo := postgres.NewUserRepository(db.GetCollection("users"))
+	postRepo := postgres.NewPostRepository(db.GetCollection("posts"))
+{{else}}
+	userRepo := postgres.NewUserRepository(db.GetDB())
+	postRepo := postgres.NewPostRepository(db.GetDB())
+{{end}}
+
+	// Initialize services
+	jwtService := auth.NewJWTService(cfg.JWT.Secret, cfg.JWT.ExpirationHours)
+	userService := user.NewService(userRepo, jwtService)
+	postService := post.NewService(postRepo)
+
+	// Initialize validator
+	validator := validator.New()
+
+	// Initialize handlers
+	healthHandler := handlers.NewHealthHandler()
+	authHandler := handlers.NewAuthHandler(userService, validator)
+	userHandler := handlers.NewUserHandler(userService, validator)
+	postHandler := handlers.NewPostHandler(postService, validator)
+
+	// Initialize middleware
+	corsMiddleware := middleware.NewCORSMiddleware(
+		cfg.CORS.AllowedOrigins,
+		cfg.CORS.AllowedMethods,
+		cfg.CORS.AllowedHeaders,
+	)
+	loggingMiddleware := middleware.NewLoggingMiddleware(logger)
+	rateLimitMiddleware := middleware.NewRateLimitMiddleware(
+		cfg.RateLimit.RequestsPerMinute,
+		time.Minute,
+	)
+	authMiddleware := middleware.NewAuthMiddleware(jwtService)
+
+	// Apply global middleware to Echo
+	e.Use(echo.WrapMiddleware(corsMiddleware.Handler))
+	e.Use(echo.WrapMiddleware(loggingMiddleware.Handler))
+	e.Use(echo.WrapMiddleware(rateLimitMiddleware.Handler))
+
+	// API routes
+	api := e.Group("/api/v1")
+
+	// Public routes
+	api.GET("/health", echo.WrapHandler(http.HandlerFunc(healthHandler.Health)))
+	
+	// Auth routes
+	auth := api.Group("/auth")
+	auth.POST("/login", echo.WrapHandler(http.HandlerFunc(authHandler.Login)))
+	auth.POST("/register", echo.WrapHandler(http.HandlerFunc(authHandler.Register)))
+
+	// Public post routes (read-only)
+	api.GET("/posts", echo.WrapHandler(http.HandlerFunc(postHandler.GetPosts)))
+	api.GET("/posts/:id", echo.WrapHandler(http.HandlerFunc(postHandler.GetPost)))
+
+	// Protected routes
+	protected := api.Group("")
+	protected.Use(echo.WrapMiddleware(authMiddleware.RequireAuth))
+
+	// User routes (protected)
+	protected.GET("/users", echo.WrapHandler(http.HandlerFunc(userHandler.GetUsers)))
+	protected.GET("/users/:id", echo.WrapHandler(http.HandlerFunc(userHandler.GetUser)))
+	protected.PUT("/users/:id", echo.WrapHandler(http.HandlerFunc(userHandler.UpdateUser)))
+	protected.DELETE("/users/:id", echo.WrapHandler(http.HandlerFunc(userHandler.DeleteUser)))
+
+	// Post routes (protected)
+	protected.POST("/posts", echo.WrapHandler(http.HandlerFunc(postHandler.CreatePost)))
+	protected.PUT("/posts/:id", echo.WrapHandler(http.HandlerFunc(postHandler.UpdatePost)))
+	protected.DELETE("/posts/:id", echo.WrapHandler(http.HandlerFunc(postHandler.DeletePost)))
+
+	return e
+}

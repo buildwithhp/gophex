@@ -1,0 +1,13 @@
+package post
+
+import (
+	"context"
+)
+
+type Repository interface {
+	Create(ctx context.Context, post *Post) (*Post, error)
+	GetByID(ctx context.Context, id int64) (*Post, error)
+	GetAll(ctx context.Context, page, limit int, userID int64) ([]*Post, int64, error)
+	Update(ctx context.Context, id int64, userID int64, post *Post) (*Post, error)
+	Delete(ctx context.Context, id int64, userID int64) error
+}
